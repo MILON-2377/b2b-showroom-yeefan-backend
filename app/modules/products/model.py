@@ -9,9 +9,12 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    and_,
     func,
 )
-from sqlalchemy import Enum as SqlEnum
+from sqlalchemy import (
+    Enum as SqlEnum,
+)
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -113,6 +116,13 @@ class Product(TimestampMixin, Base):
     collection: Mapped["Collection"] = relationship(
         "Collection",
         back_populates="products",
+        primaryjoin=(
+            "and_("
+            "Product.collection_id == Collection.id, "
+            "Product.brand_id == Collection.brand_id"
+            ")"
+        ),
+        foreign_keys="Product.collection_id",
     )
 
     brand: Mapped["Brand"] = relationship(

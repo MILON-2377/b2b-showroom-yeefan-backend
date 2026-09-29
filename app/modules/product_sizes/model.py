@@ -171,9 +171,9 @@ class ProductMeasurementGuide(Base, TimestampMixin):
         back_populates="measurement_guide",
     )
 
-    customization: Mapped["ProductCustomization | None"] = relationship(
-        "ProductCustomization",
-        back_populates="product",
-        cascade="all, delete-orphan",
-        uselist=False,
-    )
+    # customization: Mapped["ProductCustomization | None"] = relationship(
+    #     "ProductCustomization",
+    #     back_populates="product",
+    #     cascade="all, delete-orphan",
+    #     uselist=False,
+    # )

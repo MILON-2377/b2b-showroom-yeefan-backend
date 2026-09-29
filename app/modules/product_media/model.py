@@ -1,4 +1,3 @@
-from enum import Enum
 from typing import TYPE_CHECKING
 from uuid import UUID
 
@@ -12,9 +11,6 @@ from sqlalchemy import (
     func,
     text,
 )
-from sqlalchemy import (
-    Enum as SAEnum,
-)
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -22,12 +18,8 @@ from app.core.database.base import Base
 from app.core.models import TimestampMixin
 
 if TYPE_CHECKING:
+    from app.modules.media.model import MediaAsset
     from app.modules.products.model import Product
-
-
-class MediaType(str, Enum):
-    IMAGE = "IMAGE"
-    VIDEO = "VIDEO"
 
 
 class ProductMedia(TimestampMixin, Base):
@@ -46,14 +38,11 @@ class ProductMedia(TimestampMixin, Base):
         index=True,
     )
 
-    media_type: Mapped[MediaType] = mapped_column(
-        SAEnum(MediaType, name="media_type"),
+    media_asset_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("media_assets.id", ondelete="RESTRICT"),
         nullable=False,
-    )
-
-    url: Mapped[str] = mapped_column(
-        Text,
-        nullable=False,
+        index=True,
     )
 
     alt_text: Mapped[str | None] = mapped_column(
@@ -89,4 +78,9 @@ class ProductMedia(TimestampMixin, Base):
     product: Mapped["Product"] = relationship(
         "Product",
         back_populates="media",
+    )
+
+    media_asset: Mapped["MediaAsset"] = relationship(
+        "MediaAsset",
+        back_populates="product_media",
     )

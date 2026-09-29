@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy import Enum as SqlEnum
-from sqlalchemy import ForeignKey, String, Text, UniqueConstraint, func
+from sqlalchemy import ForeignKey, String, Text, UniqueConstraint, and_, func
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -61,4 +61,11 @@ class Collection(TimestampMixin, Base):
     products: Mapped[list["Product"]] = relationship(
         "Product",
         back_populates="collection",
+        primaryjoin=(
+            "and_("
+            "Collection.id == Product.collection_id, "
+            "Collection.brand_id == Product.brand_id"
+            ")"
+        ),
+        foreign_keys="Product.collection_id",
     )

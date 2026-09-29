@@ -3,6 +3,7 @@ from app.modules.categories.model import Category
 from app.modules.collections.model import Collection
 from app.modules.content.model import ContentPage
 from app.modules.inquiries.model import Inquiry, InquiryProduct
+from app.modules.media.model import MediaAsset
 from app.modules.product_colors.model import ProductColor
 from app.modules.product_customizations.model import (
     ProductCustomization,
@@ -28,4 +29,5 @@ __all__ = [
     "Inquiry",
     "InquiryProduct",
     "ContentPage",
+    "MediaAsset",
 ]
