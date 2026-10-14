@@ -1,16 +1,46 @@
 from abc import ABC, abstractmethod
 from uuid import UUID
 
-from app.core.models import RecordStatus
+from app.modules.products.dtos import (
+    ProductQueryDTO,
+    PublicProductListResult,
+    PublicProductQueryDTO,
+)
 from app.modules.products.model import Product
+from app.modules.products.query import ProductListResult
 
 
 class AbstractProductRepository(ABC):
     @abstractmethod
+    async def get_public_by_id(
+        self,
+        product_id: UUID,
+    ) -> Product | None:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def list_public(
+        self,
+        *,
+        query: PublicProductQueryDTO,
+    ) -> PublicProductListResult:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def list_featured(
+        self,
+        *,
+        page: int,
+        page_size: int,
+    ) -> ProductListResult:
+        raise NotImplementedError
+
+    @abstractmethod
     async def get_by_id(
         self,
         product_id: UUID,
-    ) -> Product | None: ...
+    ) -> Product | None:
+        raise NotImplementedError
 
     @abstractmethod
     async def get_by_slug(
@@ -30,11 +60,9 @@ class AbstractProductRepository(ABC):
     async def list(
         self,
         *,
-        brand_id: UUID | None = None,
-        collection_id: UUID | None = None,
-        category_id: UUID | None = None,
-        status: RecordStatus | None = None,
-    ) -> list[Product]: ...
+        query: ProductQueryDTO,
+    ) -> ProductListResult:
+        raise NotImplementedError
 
     @abstractmethod
     async def exists_by_slug(
@@ -55,7 +83,7 @@ class AbstractProductRepository(ABC):
     ) -> bool: ...
 
     @abstractmethod
-    async def add(
+    async def create(
         self,
         product: Product,
     ) -> Product: ...

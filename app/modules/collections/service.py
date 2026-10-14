@@ -1,14 +1,49 @@
+import math
 from uuid import UUID
 
+from app.core.contracts.services.collection import AbstractCollectionService
 from app.core.contracts.unit_of_work import AbstractUnitOfWork
+from app.core.errors.base import (
+    BrandNotFoundError,
+    CollectionNotFoundError,
+    CollectionSlugAlreadyExistsError,
+)
 from app.core.models import RecordStatus
+from app.modules.collections.dtos import (
+    CollectionDTO,
+    PublicCollectionListDTO,
+    PublicCollectionQueryDTO,
+)
+from app.modules.collections.exceptions import CollectionBrandMismatchError
 from app.modules.collections.model import Collection
 from app.shared.utils.slug import create_slug
 
+from .query import CollectionListQuery, CollectionListResult
 
-class CollectionService:
+
+class CollectionService(AbstractCollectionService):
     def __init__(self, uow: AbstractUnitOfWork):
         self.uow = uow
+
+    async def list_public(
+        self,
+        query: PublicCollectionQueryDTO,
+    ) -> PublicCollectionListDTO:
+        collections, total = await self.uow.collections.list_public(
+            page=query.page,
+            page_size=query.page_size,
+            search=query.search,
+        )
+
+        items = [self._to_dto(collection) for collection in collections]
+
+        return PublicCollectionListDTO(
+            items=items,
+            total=total,
+            page=query.page,
+            page_size=query.page_size,
+            total_pages=math.ceil(total / query.page_size) if total else 0,
+        )
 
     async def create(
         self,
@@ -19,21 +54,20 @@ class CollectionService:
         cover_media_url: str | None = None,
         status: RecordStatus = RecordStatus.DRAFT,
     ) -> Collection:
-        # The collection must belong to an existing brand.
         brand = await self.uow.brands.get_by_id(brand_id)
 
         if brand is None:
-            raise ValueError(f"Brand '{brand_id}' not found")
+            raise BrandNotFoundError(brand_id)
 
         slug = create_slug(name)
 
-        if await self.uow.collections.exists_by_slug(
+        exists = await self.uow.collections.exists_by_slug(
             brand_id,
             slug,
-        ):
-            raise ValueError(
-                f"Collection slug '{slug}' already exists for brand '{brand_id}'"
-            )
+        )
+
+        if exists:
+            raise CollectionSlugAlreadyExistsError(slug)
 
         collection = Collection(
             brand_id=brand_id,
@@ -52,8 +86,13 @@ class CollectionService:
     async def get_by_id(
         self,
         collection_id: UUID,
-    ) -> Collection | None:
-        return await self.uow.collections.get_by_id(collection_id)
+    ) -> Collection:
+        collection = await self.uow.collections.get_by_id(collection_id)
+
+        if collection is None:
+            raise CollectionNotFoundError(collection_id)
+
+        return collection
 
     async def get_by_slug(
         self,
@@ -65,16 +104,8 @@ class CollectionService:
             slug,
         )
 
-    async def list(
-        self,
-        brand_id: UUID,
-        *,
-        status: RecordStatus | None = None,
-    ) -> list[Collection]:
-        return await self.uow.collections.list(
-            brand_id,
-            status=status,
-        )
+    async def list(self, query: CollectionListQuery) -> CollectionListResult:
+        return await self.uow.collections.list(query)
 
     async def delete(
         self,
@@ -87,3 +118,78 @@ class CollectionService:
 
         await self.uow.collections.delete(collection)
         await self.uow.commit()
+
+    async def update(
+        self,
+        collection_id: UUID,
+        name: str,
+        description: str | None = None,
+        cover_media_url: str | None = None,
+        status: RecordStatus | None = None,
+    ) -> Collection:
+
+        collection = await self.uow.collections.get_by_id(collection_id)
+
+        if collection is None:
+            raise CollectionNotFoundError(collection_id)
+
+        slug = create_slug(name)
+
+        if slug != collection.slug:
+            exists = await self.uow.collections.exists_by_slug(
+                collection.brand_id,
+                slug,
+                exclude_id=collection_id,
+            )
+
+            if exists:
+                raise CollectionSlugAlreadyExistsError(slug)
+
+        collection.name = name
+        collection.slug = slug
+        collection.description = description
+        collection.cover_media_url = cover_media_url
+
+        if status is not None:
+            collection.status = status
+
+        await self.uow.collections.update(collection)
+
+        await self.uow.commit()
+
+        await self.uow.refresh(collection)
+
+        return collection
+
+    # Validation
+    async def validate_for_product(
+        self,
+        *,
+        collection_id: UUID,
+        brand_id: UUID,
+    ) -> CollectionDTO:
+        collection = await self.uow.collections.get_by_id(collection_id)
+
+        if collection is None:
+            raise CollectionNotFoundError(collection_id)
+
+        if collection.brand_id != brand_id:
+            raise CollectionBrandMismatchError(
+                collection_id=collection_id,
+                brand_id=brand_id,
+            )
+
+        return self._to_dto(collection)
+
+    @staticmethod
+    def _to_dto(collection: Collection) -> CollectionDTO:
+        return CollectionDTO(
+            id=collection.id,
+            brand_id=collection.brand_id,
+            name=collection.name,
+            slug=collection.slug,
+            description=collection.description,
+            status=collection.status,
+            created_at=collection.created_at,
+            updated_at=collection.updated_at,
+        )

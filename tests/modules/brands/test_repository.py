@@ -3,9 +3,10 @@ from uuid import uuid4
 
 import pytest
 
-from app.core.database import models  # noqa: F401
+import app.core.database.models
 from app.core.models import RecordStatus
 from app.modules.brands.model import Brand
+from app.modules.brands.query import BrandListQuery
 from app.modules.brands.repository import BrandRepository
 
 
@@ -64,14 +65,14 @@ async def test_list_returns_all_brands():
     result = Mock()
     result.scalars.return_value.all.return_value = brands
 
-    session = Mock()
+    session = AsyncMock()
     session.execute = AsyncMock(return_value=result)
 
     repository = BrandRepository(session)
 
-    returned_brands = await repository.list()
+    returned_brands = await repository.list(BrandListQuery())
 
-    assert returned_brands == brands
+    assert returned_brands == [brands]
     session.execute.assert_awaited_once()
 
 
@@ -170,3 +171,181 @@ async def test_delete_deletes_brand_from_session():
     await repository.delete(brand)
 
     session.delete.assert_awaited_once_with(brand)
+
+
+@pytest.mark.asyncio
+async def test_list_returns_items_and_total(
+    db_session,
+):
+    repository = BrandRepository(db_session)
+
+    brand_1 = Brand(
+        name="YEEFANS",
+        slug="yeefans",
+        status=RecordStatus.PUBLISHED,
+    )
+    brand_2 = Brand(
+        name="Soiowar",
+        slug="soiowar",
+        status=RecordStatus.PUBLISHED,
+    )
+
+    db_session.add_all([brand_1, brand_2])
+    await db_session.flush()
+
+    result = await repository.list(BrandListQuery())
+
+    assert result.total == 2
+    assert len(result.items) == 2
+    assert [brand.name for brand in result.items] == [
+        "Soiowar",
+        "YEEFANS",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_list_filters_by_status(
+    db_session,
+):
+    repository = BrandRepository(db_session)
+
+    db_session.add_all(
+        [
+            Brand(
+                name="YEEFANS",
+                slug="yeefans",
+                status=RecordStatus.PUBLISHED,
+            ),
+            Brand(
+                name="Soiowar",
+                slug="soiowar",
+                status=RecordStatus.DRAFT,
+            ),
+        ]
+    )
+
+    await db_session.flush()
+
+    result = await repository.list(
+        BrandListQuery(
+            status=RecordStatus.PUBLISHED,
+        )
+    )
+
+    assert result.total == 1
+    assert len(result.items) == 1
+    assert result.items[0].name == "YEEFANS"
+
+
+@pytest.mark.asyncio
+async def test_list_searches_by_name(
+    db_session,
+):
+    repository = BrandRepository(db_session)
+
+    db_session.add_all(
+        [
+            Brand(
+                name="YEEFANS",
+                slug="yeefans",
+                status=RecordStatus.PUBLISHED,
+            ),
+            Brand(
+                name="Soiowar",
+                slug="soiowar",
+                status=RecordStatus.PUBLISHED,
+            ),
+        ]
+    )
+
+    await db_session.flush()
+
+    result = await repository.list(
+        BrandListQuery(
+            search="yee",
+        )
+    )
+
+    assert result.total == 1
+    assert len(result.items) == 1
+    assert result.items[0].name == "YEEFANS"
+
+
+@pytest.mark.asyncio
+async def test_list_paginates_results(
+    db_session,
+):
+    repository = BrandRepository(db_session)
+
+    db_session.add_all(
+        [
+            Brand(
+                name="Alpha",
+                slug="alpha",
+                status=RecordStatus.PUBLISHED,
+            ),
+            Brand(
+                name="Beta",
+                slug="beta",
+                status=RecordStatus.PUBLISHED,
+            ),
+            Brand(
+                name="Gamma",
+                slug="gamma",
+                status=RecordStatus.PUBLISHED,
+            ),
+        ]
+    )
+
+    await db_session.flush()
+
+    result = await repository.list(
+        BrandListQuery(
+            page=2,
+            page_size=2,
+        )
+    )
+
+    assert result.total == 3
+    assert len(result.items) == 1
+    assert result.items[0].name == "Gamma"
+
+
+@pytest.mark.asyncio
+async def test_list_combines_search_and_status(
+    db_session,
+):
+    repository = BrandRepository(db_session)
+
+    db_session.add_all(
+        [
+            Brand(
+                name="YEEFANS",
+                slug="yeefans",
+                status=RecordStatus.PUBLISHED,
+            ),
+            Brand(
+                name="YEEFANS Draft",
+                slug="yeefans-draft",
+                status=RecordStatus.DRAFT,
+            ),
+            Brand(
+                name="Soiowar",
+                slug="soiowar",
+                status=RecordStatus.PUBLISHED,
+            ),
+        ]
+    )
+
+    await db_session.flush()
+
+    result = await repository.list(
+        BrandListQuery(
+            search="yee",
+            status=RecordStatus.PUBLISHED,
+        )
+    )
+
+    assert result.total == 1
+    assert len(result.items) == 1
+    assert result.items[0].name == "YEEFANS"

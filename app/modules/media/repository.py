@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import datetime
 from uuid import UUID
 
@@ -9,6 +11,7 @@ from app.core.contracts.repositories.upload_session import (
     AbstractUploadSessionRepository,
 )
 
+from .dtos import MediaAssetDeletionItem
 from .model import MediaAsset, MediaAssetStatus, UploadSession, UploadSessionStatus
 
 
@@ -25,6 +28,19 @@ class MediaAssetRepository(AbstractMediaAssetRepository):
         result = await self.session.execute(statement)
 
         return result.scalar_one_or_none()
+
+    async def get_by_ids(
+        self,
+        media_asset_ids: list[UUID],
+    ) -> list[MediaAsset]:
+        if not media_asset_ids:
+            return []
+
+        result = await self.session.scalars(
+            select(MediaAsset).where(MediaAsset.id.in_(media_asset_ids))
+        )
+
+        return list(result)
 
     async def get_by_storage_key(
         self,
@@ -59,6 +75,7 @@ class MediaAssetRepository(AbstractMediaAssetRepository):
         media_asset: MediaAsset,
     ) -> MediaAsset:
         self.session.add(media_asset)
+        await self.session.flush()
         return media_asset
 
     async def delete(
@@ -66,6 +83,49 @@ class MediaAssetRepository(AbstractMediaAssetRepository):
         media_asset: MediaAsset,
     ) -> None:
         await self.session.delete(media_asset)
+
+    async def update(self, media_asset: MediaAsset) -> MediaAsset:
+        self.session.add(media_asset)
+        await self.session.flush()
+        return media_asset
+
+    async def get_deletion_pending(
+        self,
+        *,
+        limit: int = 100,
+    ) -> list[MediaAssetDeletionItem]:
+        statement = (
+            select(
+                MediaAsset.id,
+                MediaAsset.storage_key,
+                MediaAsset.media_type,
+            )
+            .where(MediaAsset.status == MediaAssetStatus.DELETION_PENDING)
+            .order_by(MediaAsset.created_at)
+            .limit(limit)
+        )
+
+        result = await self.session.execute(statement)
+
+        return [
+            MediaAssetDeletionItem(
+                id=row.id,
+                storage_key=row.storage_key,
+                media_type=row.media_type,
+            )
+            for row in result.all()
+        ]
+
+    async def mark_for_deletion_many(
+        self,
+        media_assets: list[MediaAsset],
+    ) -> list[MediaAsset]:
+        for media_asset in media_assets:
+            media_asset.status = MediaAssetStatus.DELETION_PENDING
+
+        await self.session.flush()
+
+        return media_assets
 
 
 class UploadSessionRepository(AbstractUploadSessionRepository):
@@ -111,6 +171,8 @@ class UploadSessionRepository(AbstractUploadSessionRepository):
         upload_session: UploadSession,
     ) -> None:
         self.session.add(upload_session)
+        await self.session.flush()
+        return upload_session
 
     async def delete(
         self,

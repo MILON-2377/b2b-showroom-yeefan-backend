@@ -1,6 +1,7 @@
 from uuid import UUID, uuid4
 
 import pytest
+from app.modules.product_media.router import router
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -8,9 +9,8 @@ import app.core.database.models
 from app.modules.product_media.dependencies import (
     get_product_media_service,
 )
-from app.modules.product_media.dto import UploadIntent
+from app.modules.product_media.dtos import UploadIntent
 from app.modules.product_media.model import ProductMedia
-from app.modules.product_media.router import router
 
 
 class FakeProductMediaService:

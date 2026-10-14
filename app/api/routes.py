@@ -1,7 +1,18 @@
 from fastapi import APIRouter
 
-from app.modules.product_media.router import router as product_media_router
+from app.api.v1.admin.routes import admin_router
+from app.api.v1.auth.routes import router as auth_router
+from app.api.v1.public.routes import public_api
 
-api_router = APIRouter()
+api_router = APIRouter(prefix="/api/v1")
 
-api_router.include_router(product_media_router)
+
+# Auth Router
+api_router.include_router(auth_router)
+
+# Admin Router
+api_router.include_router(admin_router)
+
+
+# Public Router
+api_router.include_router(public_api)

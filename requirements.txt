@@ -1,0 +1,27 @@
+fastapi
+uvicorn[standard]
+
+sqlalchemy[asyncio]
+psycopg[binary]
+alembic
+
+pydantic
+pydantic-settings
+python-dotenv
+python-multipart
+email-validator
+
+argon2-cffi
+passlib[argon2]
+python-jose[cryptography]
+
+cloudinary
+
+httpx
+pytest
+pytest-asyncio
+
+# Ai
+openai
+
+slowapi

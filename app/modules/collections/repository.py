@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.contracts.repositories.collection import (
@@ -9,10 +9,52 @@ from app.core.contracts.repositories.collection import (
 from app.core.models import RecordStatus
 from app.modules.collections.model import Collection
 
+from .query import CollectionListQuery, CollectionListResult
+
 
 class CollectionRepository(AbstractCollectionRepository):
     def __init__(self, session: AsyncSession):
         self.session = session
+
+    async def list_public(
+        self,
+        page: int,
+        page_size: int,
+        search: str | None = None,
+    ) -> tuple[list[Collection], int]:
+
+        filters = [
+            Collection.status == RecordStatus.PUBLISHED,
+        ]
+
+        if search:
+            pattern = f"%{search.strip()}%"
+
+            filters.append(
+                or_(
+                    Collection.name.ilike(pattern),
+                    Collection.description.ilike(pattern),
+                )
+            )
+
+        count_statement = select(func.count(Collection.id)).where(*filters)
+
+        total = await self.session.scalar(count_statement) or 0
+
+        statement = (
+            select(Collection)
+            .where(*filters)
+            .order_by(
+                Collection.created_at.desc(),
+                Collection.id.asc(),
+            )
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+
+        result = await self.session.execute(statement)
+
+        return list(result.scalars().all()), total
 
     async def get_by_id(
         self,
@@ -36,23 +78,40 @@ class CollectionRepository(AbstractCollectionRepository):
         )
         return result.scalar_one_or_none()
 
-    async def list(
-        self,
-        brand_id: UUID,
-        *,
-        status: RecordStatus | None = None,
-    ) -> list[Collection]:
+    async def list(self, query: CollectionListQuery) -> CollectionListResult:
+
+        filters = []
+
+        if query.brand_id is not None:
+            filters.append(Collection.brand_id == query.brand_id)
+
+        if query.status is not None:
+            filters.append(Collection.status == query.status)
+
+        if query.search:
+            search = f"%{query.search}"
+
+            filters.append(Collection.name.ilike(search))
+
+        count_statement = select(func.count()).select_from(Collection).where(*filters)
+
+        total = await self.session.scalar(count_statement)
+
+        offset = (query.page - 1) * query.page_size
+
         statement = (
             select(Collection)
-            .where(Collection.brand_id == brand_id)
+            .where(*filters)
             .order_by(Collection.name)
+            .offset(offset)
+            .limit(query.page_size)
         )
 
-        if status is not None:
-            statement = statement.where(Collection.status == status)
-
         result = await self.session.execute(statement)
-        return list(result.scalars().all())
+
+        return CollectionListResult(
+            items=list(result.scalars().all()), total=total or 0
+        )
 
     async def exists_by_slug(
         self,
@@ -85,3 +144,14 @@ class CollectionRepository(AbstractCollectionRepository):
         collection: Collection,
     ) -> None:
         await self.session.delete(collection)
+
+    async def update(self, collection: Collection) -> Collection:
+
+        self.session.add(collection)
+
+        return collection
+
+    async def exists_by_brand_id(self, brand_id: UUID) -> bool:
+        statement = select(exists().where(Collection.brand_id == brand_id))
+
+        return bool(await self.session.scalar(statement))

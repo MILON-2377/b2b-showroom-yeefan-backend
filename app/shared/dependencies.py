@@ -5,6 +5,7 @@ from app.core.database.unit_of_work import UnitOfWork
 
 
 async def get_uow() -> AsyncGenerator[UnitOfWork, None]:
-    async with AsyncSessionLocal() as session:
-        async with UnitOfWork(session) as uow:
-            yield uow
+    session = AsyncSessionLocal()
+
+    async with UnitOfWork(session=session) as uow:
+        yield uow

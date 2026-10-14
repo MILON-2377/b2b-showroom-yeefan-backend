@@ -1,11 +1,21 @@
 from abc import ABC, abstractmethod
 from uuid import UUID
 
-from app.core.models import RecordStatus
 from app.modules.categories.model import Category
+from app.modules.categories.query import CategoryListQuery, CategoryListResult
 
 
 class AbstractCategoryRepository(ABC):
+
+    @abstractmethod
+    async def list_public(
+        self,
+        *,
+        page: int,
+        page_size: int
+    ) -> CategoryListResult:
+        raise NotImplementedError
+
     @abstractmethod
     async def get_by_id(
         self,
@@ -19,11 +29,7 @@ class AbstractCategoryRepository(ABC):
     ) -> Category | None: ...
 
     @abstractmethod
-    async def list(
-        self,
-        *,
-        status: RecordStatus | None = None,
-    ) -> list[Category]: ...
+    async def list(self, query: CategoryListQuery) -> CategoryListResult: ...
 
     @abstractmethod
     async def exists_by_slug(
@@ -34,10 +40,13 @@ class AbstractCategoryRepository(ABC):
     ) -> bool: ...
 
     @abstractmethod
-    async def add(
+    async def create(
         self,
         category: Category,
     ) -> Category: ...
+
+    @abstractmethod
+    async def update(self, category: Category) -> Category: ...
 
     @abstractmethod
     async def delete(

@@ -8,6 +8,9 @@ def create_slug(value: str) -> str:
 
     value = value.lower()
     value = re.sub(r"[^a-z0-9]+", "-", value)
-    value = value.strip("-")
+    value = re.sub(r"-+", "-", value)
 
-    return value
+    return value.strip("-")
+
+
+

@@ -11,6 +11,7 @@ from app.core.models import RecordStatus, TimestampMixin
 
 if TYPE_CHECKING:
     from app.modules.brands.model import Brand
+    from app.modules.categories.model import Catalog
     from app.modules.products.model import Product
 
 
@@ -68,4 +69,10 @@ class Collection(TimestampMixin, Base):
             ")"
         ),
         foreign_keys="Product.collection_id",
+    )
+
+    catalog: Mapped["Catalog | None"] = relationship(
+        "Catalog",
+        back_populates="collection",
+        uselist=False,
     )

@@ -22,6 +22,8 @@ from app.core.database.base import Base
 from app.core.models import TimestampMixin
 
 if TYPE_CHECKING:
+    from app.modules.auth.models.user_profile import UserProfile
+    from app.modules.categories.model import Category
     from app.modules.product_media.model import ProductMedia
 
 
@@ -36,11 +38,14 @@ class MediaAssetStatus(str, Enum):
     PENDING = "PENDING"
     READY = "READY"
     FAILED = "FAILED"
+    DELETION_PENDING = "DELETION_PENDING"
+    DELETED = "DELETED"
 
 
 class MediaType(str, Enum):
     IMAGE = "IMAGE"
     VIDEO = "VIDEO"
+    PDF = "PDF"
 
 
 class MediaAsset(TimestampMixin, Base):
@@ -61,6 +66,8 @@ class MediaAsset(TimestampMixin, Base):
         Text,
         nullable=False,
     )
+
+    secure_url: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     media_type: Mapped[str] = mapped_column(
         Text,
@@ -116,10 +123,21 @@ class MediaAsset(TimestampMixin, Base):
         back_populates="media_asset",
     )
 
+    category_images: Mapped[list["Category"]] = relationship(
+        "Category",
+        back_populates="image_media",
+        foreign_keys="Category.image_media_id",
+    )
+
     upload_session: Mapped["UploadSession | None"] = relationship(
         back_populates="media_asset",
         uselist=False,
         cascade="all, delete-orphan",
+    )
+
+    user_profiles: Mapped[list["UserProfile"]] = relationship(
+        "UserProfile",
+        back_populates="avatar_media",
     )
 
 
@@ -130,12 +148,6 @@ class UploadSession(TimestampMixin, Base):
         PG_UUID(as_uuid=True),
         primary_key=True,
         server_default=func.gen_random_uuid(),
-    )
-
-    product_id: Mapped[UUID] = mapped_column(
-        PG_UUID(as_uuid=True),
-        ForeignKey("products.id", ondelete="CASCADE"),
-        nullable=False,
     )
 
     media_asset_id: Mapped[UUID] = mapped_column(

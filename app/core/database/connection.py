@@ -3,5 +3,11 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from app.core.config import settings
 
 engine = create_async_engine(
-    settings.database_url, echo=True, pool_pre_ping=True, pool_recycle=300
+    settings.database_url,
+    echo=False,
+    pool_pre_ping=True,
+    pool_recycle=300,
+    pool_size=5,
+    max_overflow=5,
+    pool_timeout=30,
 )

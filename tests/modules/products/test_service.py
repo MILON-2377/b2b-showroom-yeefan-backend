@@ -1,12 +1,12 @@
-import app.core.database.models  # noqa: F401
-
 from unittest.mock import AsyncMock, Mock
 from uuid import uuid4
 
 import pytest
 
+import app.core.database.models  # noqa: F401
 from app.core.models import RecordStatus
 from app.modules.products.service import ProductService
+from app.shared.exceptions import ProductNotFoundError
 
 
 @pytest.fixture
@@ -356,3 +356,16 @@ async def test_delete(uow):
     uow.products.get_by_id.assert_awaited_once_with(product_id)
     uow.products.delete.assert_awaited_once_with(product)
     uow.commit.assert_awaited_once()
+
+
+# @pytest.mark.asyncio
+# async def test_get_by_id_raises_when_product_not_found():
+#     product_id = uuid4()
+
+#     service = ProductService(uow=uow)
+
+#     with pytest.raises(ProductNotFoundError) as exc_info:
+#         await service.get_by_id(product_id)
+
+#     assert exc_info.value.product_id == product_id
+#     assert exc_info.value.code == "PRODUCT_NOT_FOUND"

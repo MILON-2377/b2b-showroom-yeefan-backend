@@ -9,7 +9,6 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
-    and_,
     func,
 )
 from sqlalchemy import (
@@ -25,12 +24,18 @@ if TYPE_CHECKING:
     from app.modules.brands.model import Brand
     from app.modules.categories.model import Category
     from app.modules.collections.model import Collection
-    from app.modules.inquiries.model import InquiryProduct
+    from app.modules.inquiries.models.inquiry import InquiryProduct
     from app.modules.product_colors.model import ProductColor
-    from app.modules.product_customizations.model import ProductCustomization
+    from app.modules.product_customizations.models.product_customization import (
+        ProductCustomization,
+    )
     from app.modules.product_details.model import ProductDetail
     from app.modules.product_media.model import ProductMedia
-    from app.modules.product_sizes.model import ProductMeasurementGuide, ProductSize
+    from app.modules.product_sizes.models.product_measurement_guide import (
+        ProductMeasurementGuide,
+    )
+    from app.modules.product_sizes.models.product_size import ProductSize
+    from app.modules.reviews.model import Review
 
 
 class Product(TimestampMixin, Base):
@@ -176,5 +181,10 @@ class Product(TimestampMixin, Base):
 
     inquiry_products: Mapped[list["InquiryProduct"]] = relationship(
         "InquiryProduct",
+        back_populates="product",
+    )
+
+    reviews: Mapped[list["Review"]] = relationship(
+        "Review",
         back_populates="product",
     )
