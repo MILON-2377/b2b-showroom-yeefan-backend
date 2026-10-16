@@ -29,3 +29,13 @@ class DuplicateProductMediaError(ValidationError):
             code="DUPLICATE_PRODUCT_MEDIA",
         )
         self.media_asset_id = media_asset_id
+
+from app.core.errors.base import ValidationError
+
+
+class ProductMediaCannotBeNullError(ValidationError):
+    def __init__(self) -> None:
+        super().__init__(
+            message="Product media cannot be null.",
+            code="PRODUCT_MEDIA_CANNOT_BE_NULL",
+        )

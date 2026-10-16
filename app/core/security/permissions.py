@@ -31,3 +31,19 @@ class Permissions:
 
     INQUIRY_READ = "inquiry:read"
     INQUIRY_MANAGE = "inquiry:manage"
+
+    REVIEW_READ = "review:read"
+
+    REVIEW_MANAGE = "review:manage"
+
+    DASHBOARD_READ = "dashboard:read"
+
+    COMPANY_KNOWLEDGE_READ = "company_knowledge:read"
+
+    COMPANY_KNOWLEDGE_MANAGE = "company_knowledge:manage"
+
+    CATALOG_READ = "catalog:read"
+    CATALOG_MANAGE = "catalog:manage"
+
+    ABOUT_VIDEO_READ = "about_video:read"
+    ABOUT_VIDEO_MANAGE = "about_video:manage"

@@ -88,6 +88,7 @@ class CompanyKnowledgeService(AbstractCompanyKnowledgeService):
             setattr(knowledge, field, value)
 
         await self.uow.commit()
+        await self.uow.refresh(knowledge)
 
         return CompanyKnowledgeDTO.model_validate(knowledge)
 

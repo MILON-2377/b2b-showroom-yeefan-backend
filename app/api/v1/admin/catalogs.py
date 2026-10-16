@@ -1,15 +1,23 @@
-from fastapi import APIRouter, Depends, Request, status
+from typing import Annotated
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, Request, Response, status
 
 from app.core.contracts.services.catalog import AbstractCatalogService
+from app.core.security.dependencies import RequirePermission
+from app.core.security.permissions import Permissions
 from app.core.security.rate_limiter import limiter
+from app.modules.auth.dtos.auth_context import AuthContext
 from app.modules.catalogs.dependencies import get_catalog_service
 from app.modules.catalogs.dtos import AdminCatalogQueryDTO
 from app.modules.catalogs.schemas import (
     AdminCatalogListResponse,
     AdminCatalogQueryParams,
     AdminCatalogResponse,
+    CatalogDetailResponse,
     CatalogResponse,
     CreateCatalogRequest,
+    UpdateCatalogRequest,
 )
 
 router = APIRouter(
@@ -27,7 +35,14 @@ router = APIRouter(
 async def create_catalog(
     request: Request,
     payload: CreateCatalogRequest,
-    service: AbstractCatalogService = Depends(get_catalog_service),
+    service: Annotated[
+        AbstractCatalogService,
+        Depends(get_catalog_service),
+    ],
+    _: Annotated[
+        AuthContext,
+        Depends(RequirePermission(Permissions.CATALOG_MANAGE)),
+    ],
 ) -> CatalogResponse:
     dto = await service.create(payload.to_dto())
     return CatalogResponse.model_validate(dto)
@@ -40,8 +55,18 @@ async def create_catalog(
 @limiter.limit("120/minute")
 async def list_catalogs(
     request: Request,
-    params: AdminCatalogQueryParams = Depends(),
-    service: AbstractCatalogService = Depends(get_catalog_service),
+    params: Annotated[
+        AdminCatalogQueryParams,
+        Depends(),
+    ],
+    service: Annotated[
+        AbstractCatalogService,
+        Depends(get_catalog_service),
+    ],
+    _: Annotated[
+        AuthContext,
+        Depends(RequirePermission(Permissions.CATALOG_READ)),
+    ],
 ) -> AdminCatalogListResponse:
     result = await service.list_admin(
         AdminCatalogQueryDTO(
@@ -76,3 +101,75 @@ async def list_catalogs(
         page_size=result.page_size,
         total_pages=result.total_pages,
     )
+
+
+@router.get(
+    "/{catalog_id}",
+    response_model=CatalogDetailResponse,
+    status_code=status.HTTP_200_OK,
+)
+@limiter.limit("60/minute")
+async def get_catalog_by_id(
+    request: Request,
+    catalog_id: UUID,
+    service: Annotated[
+        AbstractCatalogService,
+        Depends(get_catalog_service),
+    ],
+    _: Annotated[
+        AuthContext,
+        Depends(RequirePermission(Permissions.CATALOG_READ)),
+    ],
+) -> CatalogDetailResponse:
+    dto = await service.get_by_id(catalog_id=catalog_id)
+
+    return CatalogDetailResponse.model_validate(dto)
+
+
+@router.patch(
+    "/{catalog_id}",
+    response_model=CatalogDetailResponse,
+    status_code=status.HTTP_200_OK,
+)
+@limiter.limit("60/minute")
+async def update_catalog(
+    request: Request,
+    catalog_id: UUID,
+    payload: UpdateCatalogRequest,
+    service: Annotated[
+        AbstractCatalogService,
+        Depends(get_catalog_service),
+    ],
+    _: Annotated[
+        AuthContext,
+        Depends(RequirePermission(Permissions.CATALOG_MANAGE)),
+    ],
+) -> CatalogDetailResponse:
+    dto = await service.update(
+        catalog_id=catalog_id,
+        payload=payload.to_dto(),
+    )
+
+    return CatalogDetailResponse.model_validate(dto)
+
+
+@router.delete(
+    "/{catalog_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+@limiter.limit("60/minute")
+async def delete_catalog(
+    request: Request,
+    catalog_id: UUID,
+    service: Annotated[
+        AbstractCatalogService,
+        Depends(get_catalog_service),
+    ],
+    _: Annotated[
+        AuthContext,
+        Depends(RequirePermission(Permissions.CATALOG_MANAGE)),
+    ],
+) -> Response:
+    await service.delete(catalog_id=catalog_id)
+
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

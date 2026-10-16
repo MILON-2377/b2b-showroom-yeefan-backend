@@ -7,6 +7,8 @@ from app.core.contracts.services.about_video import (
     AbstractAboutVideoService,
 )
 from app.core.models import RecordStatus
+from app.core.security.dependencies import RequirePermission
+from app.core.security.permissions import Permissions
 from app.core.security.rate_limiter import limiter
 from app.modules.about_videos.dependencies import get_about_video_service
 from app.modules.about_videos.schemas import (
@@ -15,6 +17,7 @@ from app.modules.about_videos.schemas import (
     CreateAboutVideoRequest,
     UpdateAboutVideoRequest,
 )
+from app.modules.auth.dtos.auth_context import AuthContext
 
 router = APIRouter(
     prefix="/about-videos",
@@ -35,6 +38,10 @@ async def create_about_video(
         AbstractAboutVideoService,
         Depends(get_about_video_service),
     ],
+    _: Annotated[
+        AuthContext,
+        Depends(RequirePermission(Permissions.ABOUT_VIDEO_MANAGE)),
+    ],
 ) -> AboutVideoResponse:
     video = await service.create(payload.to_dto())
     return AboutVideoResponse.model_validate(video)
@@ -50,6 +57,10 @@ async def list_about_videos(
     service: Annotated[
         AbstractAboutVideoService,
         Depends(get_about_video_service),
+    ],
+    _: Annotated[
+        AuthContext,
+        Depends(RequirePermission(Permissions.ABOUT_VIDEO_READ)),
     ],
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
@@ -84,6 +95,10 @@ async def get_about_video(
         AbstractAboutVideoService,
         Depends(get_about_video_service),
     ],
+    _: Annotated[
+        AuthContext,
+        Depends(RequirePermission(Permissions.ABOUT_VIDEO_READ)),
+    ],
 ) -> AboutVideoResponse:
     video = await service.get_by_id(video_id)
     return AboutVideoResponse.model_validate(video)
@@ -101,6 +116,10 @@ async def update_about_video(
     service: Annotated[
         AbstractAboutVideoService,
         Depends(get_about_video_service),
+    ],
+    _: Annotated[
+        AuthContext,
+        Depends(RequirePermission(Permissions.ABOUT_VIDEO_MANAGE)),
     ],
 ) -> AboutVideoResponse:
     video = await service.update(
@@ -121,6 +140,10 @@ async def delete_about_video(
     service: Annotated[
         AbstractAboutVideoService,
         Depends(get_about_video_service),
+    ],
+    _: Annotated[
+        AuthContext,
+        Depends(RequirePermission(Permissions.ABOUT_VIDEO_MANAGE)),
     ],
 ) -> Response:
     await service.delete(video_id)

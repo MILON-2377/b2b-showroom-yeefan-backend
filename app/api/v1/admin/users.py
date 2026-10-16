@@ -1,11 +1,13 @@
+from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Request, status
 
 from app.core.contracts.services.user import AbstractUserService
 from app.core.contracts.services.user_profile import AbstractUserProfileService
 from app.core.security.dependencies import RequirePermission
 from app.core.security.permissions import Permissions
+from app.core.security.rate_limiter import limiter
 from app.modules.auth.dependencies import (
     get_user_profile_service,
     get_user_service,
@@ -32,10 +34,18 @@ router = APIRouter(prefix="/users", tags=["User"])
     response_model=UserResponse,
     status_code=status.HTTP_201_CREATED,
 )
+@limiter.limit("5/minute")
 async def create_admin(
+    request: Request,
     payload: CreateAdminRequest,
-    _: AuthContext = Depends(RequirePermission(Permissions.USER_CREATE)),
-    user_service: AbstractUserService = Depends(get_user_service),
+    _: Annotated[
+        AuthContext,
+        Depends(RequirePermission(Permissions.USER_CREATE)),
+    ],
+    user_service: Annotated[
+        AbstractUserService,
+        Depends(get_user_service),
+    ],
 ) -> UserResponse:
     user = await user_service.create_admin(
         email=payload.email,
@@ -49,13 +59,21 @@ async def create_admin(
     "",
     response_model=UserListResponse,
 )
+@limiter.limit("60/minute")
 async def list_users(
+    request: Request,
+    _: Annotated[
+        AuthContext,
+        Depends(RequirePermission(Permissions.USER_READ)),
+    ],
+    user_service: Annotated[
+        AbstractUserService,
+        Depends(get_user_service),
+    ],
     role: UserRole | None = Query(default=None),
     is_active: bool | None = Query(default=None),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
-    _: AuthContext = Depends(RequirePermission(Permissions.USER_READ)),
-    user_service: AbstractUserService = Depends(get_user_service),
 ) -> UserListResponse:
     users = await user_service.list_users(
         role=role,
@@ -87,10 +105,12 @@ async def list_users(
     response_model=UserResponse,
     status_code=status.HTTP_200_OK,
 )
+@limiter.limit("60/minute")
 async def get_user(
+    request: Request,
     user_id: UUID,
-    _: AuthContext = Depends(RequirePermission(Permissions.USER_READ)),
-    user_service: AbstractUserService = Depends(get_user_service),
+    _: Annotated[AuthContext, Depends(RequirePermission(Permissions.USER_READ))],
+    user_service: Annotated[AbstractUserService, Depends(get_user_service)],
 ) -> UserResponse:
     user = await user_service.get_user(
         user_id=user_id,
@@ -104,11 +124,19 @@ async def get_user(
     response_model=UserResponse,
     status_code=status.HTTP_200_OK,
 )
+@limiter.limit("30/minute")
 async def update_user(
+    request: Request,
     user_id: UUID,
     payload: UpdateUserRequest,
-    _: AuthContext = Depends(RequirePermission(Permissions.USER_UPDATE)),
-    user_service: AbstractUserService = Depends(get_user_service),
+    _: Annotated[
+        AuthContext,
+        Depends(RequirePermission(Permissions.USER_UPDATE)),
+    ],
+    user_service: Annotated[
+        AbstractUserService,
+        Depends(get_user_service),
+    ],
 ) -> UserResponse:
     user = await user_service.update_user(
         user_id=user_id,
@@ -123,10 +151,18 @@ async def update_user(
     response_model=UserResponse,
     status_code=status.HTTP_200_OK,
 )
+@limiter.limit("10/minute")
 async def activate_user(
+    request: Request,
     user_id: UUID,
-    _: AuthContext = Depends(RequirePermission(Permissions.USER_ACTIVATE)),
-    user_service: AbstractUserService = Depends(get_user_service),
+    _: Annotated[
+        AuthContext,
+        Depends(RequirePermission(Permissions.USER_ACTIVATE)),
+    ],
+    user_service: Annotated[
+        AbstractUserService,
+        Depends(get_user_service),
+    ],
 ) -> UserResponse:
     user = await user_service.activate_user(
         user_id=user_id,
@@ -140,10 +176,18 @@ async def activate_user(
     response_model=UserResponse,
     status_code=status.HTTP_200_OK,
 )
+@limiter.limit("10/minute")
 async def deactivate_user(
+    request: Request,
     user_id: UUID,
-    authe_context: AuthContext = Depends(RequirePermission(Permissions.USER_DEACTIVATE)),
-    user_service: AbstractUserService = Depends(get_user_service),
+    authe_context: Annotated[
+        AuthContext,
+        Depends(RequirePermission(Permissions.USER_DEACTIVATE)),
+    ],
+    user_service: Annotated[
+        AbstractUserService,
+        Depends(get_user_service),
+    ],
 ) -> UserResponse:
     user = await user_service.deactivate_user(
         user_id=user_id, actor_user_id=authe_context.user.id
@@ -156,11 +200,19 @@ async def deactivate_user(
     "/{user_id}/reset-password",
     status_code=status.HTTP_204_NO_CONTENT,
 )
+@limiter.limit("5/minute")
 async def reset_password(
+    request: Request,
     user_id: UUID,
     payload: ResetPasswordRequest,
-    _: AuthContext = Depends(RequirePermission(Permissions.USER_RESET_PASSWORD)),
-    user_service: AbstractUserService = Depends(get_user_service),
+    _: Annotated[
+        AuthContext,
+        Depends(RequirePermission(Permissions.USER_RESET_PASSWORD)),
+    ],
+    user_service: Annotated[
+        AbstractUserService,
+        Depends(get_user_service),
+    ],
 ) -> None:
     await user_service.reset_password(
         user_id=user_id,
@@ -172,10 +224,18 @@ async def reset_password(
     "/{user_id}/revoke-sessions",
     status_code=status.HTTP_204_NO_CONTENT,
 )
+@limiter.limit("10/minute")
 async def revoke_user_sessions(
+    request: Request,
     user_id: UUID,
-    _: AuthContext = Depends(RequirePermission(Permissions.USER_REVOKE_SESSIONS)),
-    user_service: AbstractUserService = Depends(get_user_service),
+    _: Annotated[
+        AuthContext,
+        Depends(RequirePermission(Permissions.USER_REVOKE_SESSIONS)),
+    ],
+    user_service: Annotated[
+        AbstractUserService,
+        Depends(get_user_service),
+    ],
 ) -> None:
     await user_service.revoke_user_sessions(
         user_id=user_id,
@@ -186,11 +246,19 @@ async def revoke_user_sessions(
     "/{user_id}/profile",
     response_model=UserProfileResponse,
 )
+@limiter.limit("30/minute")
 async def update_user_profile(
+    request: Request,
     user_id: UUID,
     payload: UpdateUserProfileRequest,
-    _: AuthContext = Depends(RequirePermission(Permissions.USER_UPDATE)),
-    profile_service: AbstractUserProfileService = Depends(get_user_profile_service),
+    _: Annotated[
+        AuthContext,
+        Depends(RequirePermission(Permissions.USER_UPDATE)),
+    ],
+    profile_service: Annotated[
+        AbstractUserProfileService,
+        Depends(get_user_profile_service),
+    ],
 ) -> UserProfileResponse:
     profile = await profile_service.update_profile(
         user_id=user_id,

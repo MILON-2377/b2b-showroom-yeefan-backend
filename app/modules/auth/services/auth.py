@@ -3,6 +3,7 @@ import secrets
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
+from app.core.config import settings
 from app.core.contracts.services.auth import AbstractAuthService
 from app.core.contracts.services.auth_session import AbstractSessionService
 from app.core.contracts.services.token import AbstractTokenService
@@ -102,6 +103,20 @@ class AuthService(AbstractAuthService):
             raise InvalidCredentialsError()
 
         now = datetime.now(timezone.utc)
+
+        active_sessions = await self.uow.auth_sessions.get_active_by_user_id(
+            user_id=user.id
+        )
+
+        max_sessions = settings.max_sessions_per_user
+
+        if len(active_sessions) >= max_sessions:
+            session_to_revoke = active_sessions[
+                : len(active_sessions) - max_sessions + 1
+            ]
+
+            for session in session_to_revoke:
+                await self._revoke_session_and_tokens(session=session)
 
         session = Session(
             user_id=user.id,
@@ -224,6 +239,9 @@ class AuthService(AbstractAuthService):
         *,
         refresh_token: str,
     ) -> None:
+
+        logger.debug("Logout requested")
+
         token_hash = self.token_service.hash_refresh_token(
             refresh_token,
         )
@@ -233,12 +251,21 @@ class AuthService(AbstractAuthService):
         )
 
         if token is None:
+            logger.info("Logout skipped: refresh-token record not found")
             return
 
         if token.revoked_at is not None:
+            logger.info("Logout skipped: token already revoked session_id=%s")
             return
 
-        await self.uow.refresh_tokens.revoke(token)
+        session = await self.uow.auth_sessions.get_by_id(token.session_id)
+
+        if session is not None:
+            await self._revoke_session_and_tokens(session=session)
+
+        else:
+            await self.uow.refresh_tokens.revoke(token)
+
         await self.uow.commit()
 
         logger.info(
@@ -287,3 +314,16 @@ class AuthService(AbstractAuthService):
             raise UserInactiveError()
 
         return AuthContext(user=user, session_id=session_id)
+
+    async def _revoke_session_and_tokens(
+        self,
+        session: Session,
+    ) -> None:
+        refresh_tokens = await self.uow.refresh_tokens.get_active_by_session_id(
+            session_id=session.id,
+        )
+
+        for refresh_token in refresh_tokens:
+            await self.uow.refresh_tokens.revoke(refresh_token)
+
+        await self.uow.auth_sessions.revoke(session)

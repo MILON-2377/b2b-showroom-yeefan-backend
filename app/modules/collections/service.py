@@ -10,11 +10,11 @@ from app.core.errors.base import (
 )
 from app.core.models import RecordStatus
 from app.modules.collections.dtos import (
+    AvailableCatalogCollectionsDTO,
     CollectionDTO,
     PublicCollectionListDTO,
     PublicCollectionQueryDTO,
 )
-from app.modules.collections.exceptions import CollectionBrandMismatchError
 from app.modules.collections.model import Collection
 from app.shared.utils.slug import create_slug
 
@@ -161,23 +161,37 @@ class CollectionService(AbstractCollectionService):
 
         return collection
 
+    async def list_by_unused_catalogs(
+        self,
+        *,
+        page: int,
+        page_size: int,
+        search: str | None = None,
+    ) -> AvailableCatalogCollectionsDTO:
+
+        collections, total = await self.uow.collections.list_by_unused_catalogs(
+            page=page,
+            page_size=page_size,
+            search=search,
+        )
+
+        return AvailableCatalogCollectionsDTO(
+            items=[self._to_dto(collection) for collection in collections],
+            total=total,
+            page=page,
+            page_size=page_size,
+        )
+
     # Validation
     async def validate_for_product(
         self,
         *,
         collection_id: UUID,
-        brand_id: UUID,
     ) -> CollectionDTO:
         collection = await self.uow.collections.get_by_id(collection_id)
 
         if collection is None:
             raise CollectionNotFoundError(collection_id)
-
-        if collection.brand_id != brand_id:
-            raise CollectionBrandMismatchError(
-                collection_id=collection_id,
-                brand_id=brand_id,
-            )
 
         return self._to_dto(collection)
 

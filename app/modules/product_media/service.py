@@ -154,18 +154,11 @@ class ProductMediaService(AbstractProductMediaService):
             item for item in existing_media if item.id not in submitted_ids
         ]
 
-        if removed_media:
-            await self.media_asset_service.mark_for_deletion_many(
-                media_asset_ids=[item.media_asset_id for item in removed_media],
-            )
-
-            await self.uow.product_media.delete_many(
-                removed_media,
-            )
+        # Collect asset IDs from removed associations.
+        old_media_asset_ids: set[UUID] = {item.media_asset_id for item in removed_media}
 
         new_media: list[ProductMedia] = []
         updated_media: list[ProductMedia] = []
-        old_media_asset_ids: list[UUID] = []
 
         for payload in payloads_list:
             if payload.id is None:
@@ -182,8 +175,9 @@ class ProductMediaService(AbstractProductMediaService):
 
             product_media = existing_by_id[payload.id]
 
+            # Track the old asset when replacing it.
             if product_media.media_asset_id != payload.media_asset_id:
-                old_media_asset_ids.append(product_media.media_asset_id)
+                old_media_asset_ids.add(product_media.media_asset_id)
 
             product_media.media_asset_id = payload.media_asset_id
             product_media.alt_text = payload.alt_text
@@ -192,22 +186,30 @@ class ProductMediaService(AbstractProductMediaService):
 
             updated_media.append(product_media)
 
-        if old_media_asset_ids:
-            await self.media_asset_service.mark_for_deletion_many(
-                media_asset_ids=old_media_asset_ids,
-            )
+        # Delete removed product-media associations.
+        if removed_media:
+            await self.uow.product_media.delete_many(removed_media)
 
+        # Create new associations.
         if new_media:
-            await self.uow.product_media.create_many(
-                new_media,
-            )
+            await self.uow.product_media.create_many(new_media)
 
+        # Persist updated associations.
         if updated_media:
-            await self.uow.product_media.update_many(
-                updated_media,
+            await self.uow.product_media.update_many(updated_media)
+
+        # Mark every removed or replaced asset for deletion once.
+        if old_media_asset_ids:
+            await self.upload_media_service.mark_for_deletion_many(
+                media_asset_ids=list(old_media_asset_ids),
             )
 
-        return [self._to_dto(item) for item in [*updated_media, *new_media]]
+        # Return the complete updated media collection.
+        result = await self.uow.product_media.get_by_product_id(
+            product_id=product_id,
+        )
+
+        return [self._to_dto(item) for item in result]
 
     async def delete(
         self,

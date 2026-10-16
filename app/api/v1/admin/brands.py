@@ -1,3 +1,4 @@
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request, status
@@ -5,7 +6,10 @@ from fastapi import APIRouter, Depends, Query, Request, status
 from app.core.contracts.services.brand import AbstractBrandService
 from app.core.errors.schemas import DeleteResponse
 from app.core.models import RecordStatus
+from app.core.security.dependencies import RequirePermission
+from app.core.security.permissions import Permissions
 from app.core.security.rate_limiter import limiter
+from app.modules.auth.dtos.auth_context import AuthContext
 from app.modules.brands.dependencies import get_brand_service
 from app.modules.brands.query import BrandListQuery
 from app.modules.brands.schemas import (
@@ -31,7 +35,14 @@ router = APIRouter(
 async def create_brand(
     request: Request,
     payload: CreateBrandRequest,
-    service: BrandService = Depends(get_brand_service),
+    service: Annotated[
+        BrandService,
+        Depends(get_brand_service),
+    ],
+    _: Annotated[
+        AuthContext,
+        Depends(RequirePermission(Permissions.BRAND_MANAGE)),
+    ],
 ) -> BrandResponse:
     brand = await service.create(
         name=payload.name,
@@ -54,11 +65,18 @@ async def create_brand(
 @limiter.limit("120/minute")
 async def list_brands(
     request: Request,
+    service: Annotated[
+        AbstractBrandService,
+        Depends(get_brand_service),
+    ],
+    _: Annotated[
+        AuthContext,
+        Depends(RequirePermission(Permissions.BRAND_READ)),
+    ],
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     search: str | None = Query(default=None, min_length=1),
     status: RecordStatus | None = Query(default=None),
-    service: AbstractBrandService = Depends(get_brand_service),
 ) -> BrandListResponse:
 
     query = BrandListQuery(
@@ -94,7 +112,15 @@ async def list_brands(
 @limiter.limit("60/minute")
 async def getById(
     request: Request,
-    brand_id: UUID, service: AbstractBrandService = Depends(get_brand_service)
+    brand_id: UUID,
+    service: Annotated[
+        AbstractBrandService,
+        Depends(get_brand_service),
+    ],
+    _: Annotated[
+        AuthContext,
+        Depends(RequirePermission(Permissions.BRAND_READ)),
+    ],
 ):
     return await service.get_by_id(brand_id)
 
@@ -105,7 +131,14 @@ async def update_brand(
     request: Request,
     brand_id: UUID,
     payload: UpdateBrandRequest,
-    service: AbstractBrandService = Depends(get_brand_service),
+    service: Annotated[
+        AbstractBrandService,
+        Depends(get_brand_service),
+    ],
+    _: Annotated[
+        AuthContext,
+        Depends(RequirePermission(Permissions.BRAND_MANAGE)),
+    ],
 ) -> BrandResponse:
     brand = await service.update(
         brand_id,
@@ -135,7 +168,14 @@ async def update_brand(
 async def delete_brand(
     request: Request,
     brand_id: UUID,
-    service: AbstractBrandService = Depends(get_brand_service),
+    service: Annotated[
+        AbstractBrandService,
+        Depends(get_brand_service),
+    ],
+    _: Annotated[
+        AuthContext,
+        Depends(RequirePermission(Permissions.BRAND_MANAGE)),
+    ],
 ) -> DeleteResponse:
     await service.delete(brand_id)
 

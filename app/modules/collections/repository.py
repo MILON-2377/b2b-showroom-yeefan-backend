@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from uuid import UUID
 
 from sqlalchemy import exists, func, or_, select
@@ -7,6 +9,7 @@ from app.core.contracts.repositories.collection import (
     AbstractCollectionRepository,
 )
 from app.core.models import RecordStatus
+from app.modules.catalogs.model import Catalog
 from app.modules.collections.model import Collection
 
 from .query import CollectionListQuery, CollectionListResult
@@ -155,3 +158,49 @@ class CollectionRepository(AbstractCollectionRepository):
         statement = select(exists().where(Collection.brand_id == brand_id))
 
         return bool(await self.session.scalar(statement))
+
+    async def list_by_unused_catalogs(
+        self,
+        *,
+        page: int,
+        page_size: int,
+        search: str | None = None,
+    ) -> tuple[list[Collection], int]:
+
+        filters = [
+            Collection.status == RecordStatus.PUBLISHED,
+            ~(
+                select(Catalog.id)
+                .where(Catalog.collection_id == Collection.id)
+                .exists()
+            ),
+        ]
+
+        if search and search.strip():
+            pattern = f"%{search.strip()}%"
+
+            filters.append(
+                or_(
+                    Collection.name.ilike(pattern),
+                    Collection.description.ilike(pattern),
+                )
+            )
+
+        count_statement = select(func.count(Collection.id)).where(*filters)
+
+        total = await self.session.scalar(count_statement) or 0
+
+        statement = (
+            select(Collection)
+            .where(*filters)
+            .order_by(
+                Collection.created_at.desc(),
+                Collection.id.asc(),
+            )
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+
+        result = await self.session.execute(statement)
+
+        return list(result.scalars().all()), total

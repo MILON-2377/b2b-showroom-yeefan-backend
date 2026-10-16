@@ -48,7 +48,6 @@ from app.modules.products.dtos import (
 
 
 class CreateProductRequest(BaseModel):
-    brand_id: UUID
     collection_id: UUID
     category_id: UUID
 
@@ -351,7 +350,6 @@ class UpdateProductRequest(BaseModel):
     )
     description: str | None = None
 
-    brand_id: UUID | None = None
     collection_id: UUID | None = None
     category_id: UUID | None = None
 

@@ -4,6 +4,7 @@ from uuid import UUID
 from app.modules.catalogs.dtos import (
     AdminCatalogListDTO,
     AdminCatalogQueryDTO,
+    CatalogDetailQueryDTO,
     CatalogDTO,
     CreateCatalogDTO,
     PublicCatalogDTO,
@@ -39,7 +40,7 @@ class AbstractCatalogService(ABC):
     async def get_by_id(
         self,
         catalog_id: UUID,
-    ) -> CatalogDTO:
+    ) -> CatalogDetailQueryDTO:
         raise NotImplementedError
 
     @abstractmethod

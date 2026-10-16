@@ -18,6 +18,24 @@ class SessionRepository(AbstractSessionRepository):
         await self.session.flush()
         return session
 
+    async def get_active_by_user_id(self, user_id: UUID) -> list[Session]:
+
+        now = datetime.now(timezone.utc)
+
+        statement = (
+            select(Session)
+            .where(
+                Session.user_id == user_id,
+                Session.revoked_at.is_(None),
+                Session.expires_at > now,
+            )
+            .order_by(Session.created_at.asc(), Session.id.asc())
+        )
+
+        result = await self.session.execute(statement)
+
+        return list(result.scalars().all())
+
     async def get_by_id(self, session_id: UUID) -> Session | None:
 
         statement = select(Session).where(Session.id == session_id)
@@ -88,7 +106,7 @@ class SessionRepository(AbstractSessionRepository):
 
         return result.scalars().all()
 
-    def revoke(self, session: Session) -> None:
+    async def revoke(self, session: Session) -> None:
 
         if session.revoked_at is not None:
             return

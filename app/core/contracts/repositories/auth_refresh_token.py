@@ -6,6 +6,13 @@ from app.modules.auth.models.refresh_token import RefreshToken
 
 class AbstractRefreshTokenRepository(ABC):
     @abstractmethod
+    async def get_active_by_session_id(
+        self,
+        session_id: UUID,
+    ) -> list[RefreshToken]:
+        raise NotImplementedError
+
+    @abstractmethod
     async def create(
         self,
         refresh_token: RefreshToken,

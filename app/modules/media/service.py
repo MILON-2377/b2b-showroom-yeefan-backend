@@ -124,7 +124,6 @@ class MediaUploadService(AbstractMediaUploadService):
         storage_key = media_asset.storage_key
         media_type = media_asset.media_type
         mime_type = media_asset.mime_type
-        media_asset_id = media_asset.id
 
         await self.uow.commit()
 

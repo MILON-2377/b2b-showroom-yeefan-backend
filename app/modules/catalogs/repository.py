@@ -2,7 +2,7 @@ from uuid import UUID
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import aliased
+from sqlalchemy.orm import aliased, selectinload
 
 from app.core.contracts.repositories.catalog import AbstractCatalogRepository
 from app.core.models import RecordStatus
@@ -181,7 +181,14 @@ class CatalogRepository(AbstractCatalogRepository):
         self,
         catalog_id: UUID,
     ) -> Catalog | None:
-        stmt = select(Catalog).where(Catalog.id == catalog_id)
+        stmt = (
+            select(Catalog)
+            .options(
+                selectinload(Catalog.pdf_media_asset),
+                selectinload(Catalog.cover_media_asset),
+            )
+            .where(Catalog.id == catalog_id)
+        )
 
         result = await self.session.execute(stmt)
 

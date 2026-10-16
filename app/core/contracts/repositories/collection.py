@@ -1,12 +1,22 @@
 from abc import ABC, abstractmethod
 from uuid import UUID
 
-from app.core.models import RecordStatus
 from app.modules.collections.model import Collection
 from app.modules.collections.query import CollectionListQuery, CollectionListResult
 
 
 class AbstractCollectionRepository(ABC):
+
+    @abstractmethod
+    async def list_by_unused_catalogs(
+        self,
+        *,
+        page: int,
+        page_size: int,
+        search: str | None = None,
+    ) -> tuple[list[Collection], int]:
+        raise NotImplementedError
+
     @abstractmethod
     async def list_public(
         self,

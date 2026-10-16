@@ -48,6 +48,7 @@ from app.modules.product_media.dtos import (
     ProductMediaQueryDTO,
     UpdateProductMediaDTO,
 )
+from app.modules.product_media.exceptions import ProductMediaCannotBeNullError
 from app.modules.product_media.model import ProductMedia
 from app.modules.product_sizes.dtos.product_measurement_guide import (
     CreateProductMeasurementGuideDTO,
@@ -123,11 +124,8 @@ class ProductService(AbstractProductService):
 
     async def create(self, *, payload: CreateProductDTO) -> ProductDTO:
 
-        await self.brand_service.validate_for_product(brand_id=payload.brand_id)
-
-        await self.collection_service.validate_for_product(
-            collection_id=payload.collection_id,
-            brand_id=payload.brand_id,
+        collection = await self.collection_service.validate_for_product(
+            collection_id=payload.collection_id
         )
 
         await self.category_service.validate_for_product(
@@ -136,23 +134,23 @@ class ProductService(AbstractProductService):
 
         base_slug = create_slug(payload.name)
         slug = await self.generate_unique_slug(
-            brand_id=payload.brand_id, base_slug=base_slug
+            brand_id=collection.brand_id, base_slug=base_slug
         )
         product_code = create_product_code(payload.name)
 
         await self.validate_product_code(
-            brand_id=payload.brand_id,
+            brand_id=collection.brand_id,
             product_code=product_code,
         )
 
         await self.validate_slug(
-            brand_id=payload.brand_id,
+            brand_id=collection.brand_id,
             slug=slug,
         )
 
         # Product Transaction
         product = Product(
-            brand_id=payload.brand_id,
+            brand_id=collection.brand_id,
             collection_id=payload.collection_id,
             category_id=payload.category_id,
             product_code=product_code,
@@ -325,9 +323,6 @@ class ProductService(AbstractProductService):
         if payload.description is not UNSET:
             product.description = payload.description
 
-        if payload.brand_id is not UNSET:
-            product.brand_id = payload.brand_id
-
         if payload.collection_id is not UNSET:
             product.collection_id = payload.collection_id
 
@@ -342,6 +337,15 @@ class ProductService(AbstractProductService):
                     product.published_at = datetime.now(timezone.utc)
             else:
                 product.published_at = None
+
+        if payload.media is not UNSET:
+            if payload.media is None:
+                raise ProductMediaCannotBeNullError()
+
+            await self.product_media_service.update_many(
+                product_id=product_id,
+                payloads=payload.media,
+            )
 
         if payload.details is not UNSET:
             if payload.details is None:
@@ -425,7 +429,6 @@ class ProductService(AbstractProductService):
         payload: CreateProductRequest,
     ) -> CreateProductDTO:
         return CreateProductDTO(
-            brand_id=payload.brand_id,
             collection_id=payload.collection_id,
             category_id=payload.category_id,
             name=payload.name,
@@ -694,7 +697,6 @@ class ProductService(AbstractProductService):
         return UpdateProductDTO(
             name=payload.name,
             description=payload.description,
-            brand_id=payload.brand_id,
             collection_id=payload.collection_id,
             category_id=payload.category_id,
             status=payload.status,

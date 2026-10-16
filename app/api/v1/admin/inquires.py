@@ -4,7 +4,10 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, Request, status
 
 from app.core.contracts.services.inquiry import AbstractInquiryService
+from app.core.security.dependencies import RequirePermission
+from app.core.security.permissions import Permissions
 from app.core.security.rate_limiter import limiter
+from app.modules.auth.dtos.auth_context import AuthContext
 from app.modules.inquiries.dependencies import get_inquiry_service
 from app.modules.inquiries.dtos.inquiry import InquiryDTO, UpdateInquiryStatusDTO
 from app.modules.inquiries.models.inquiry import InquiryStatus
@@ -33,6 +36,10 @@ async def update_inquiry_status(
         AbstractInquiryService,
         Depends(get_inquiry_service),
     ],
+    _: Annotated[
+        AuthContext,
+        Depends(RequirePermission(Permissions.INQUIRY_MANAGE)),
+    ],
 ) -> InquiryDTO:
     data = UpdateInquiryStatusDTO(
         status=payload.status,
@@ -55,6 +62,10 @@ async def list_inquiries(
     service: Annotated[
         AbstractInquiryService,
         Depends(get_inquiry_service),
+    ],
+    _: Annotated[
+        AuthContext,
+        Depends(RequirePermission(Permissions.INQUIRY_READ)),
     ],
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
@@ -90,6 +101,10 @@ async def get_inquiry(
     service: Annotated[
         AbstractInquiryService,
         Depends(get_inquiry_service),
+    ],
+    _: Annotated[
+        AuthContext,
+        Depends(RequirePermission(Permissions.INQUIRY_READ)),
     ],
 ) -> InquiryDTO:
     return await service.get_by_id(inquiry_id)

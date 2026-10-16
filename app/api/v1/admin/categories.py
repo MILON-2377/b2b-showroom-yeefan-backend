@@ -1,11 +1,15 @@
 from math import ceil
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request, status
 
 from app.core.contracts.services.category import AbstractCategoryService
 from app.core.models import RecordStatus
+from app.core.security.dependencies import RequirePermission
+from app.core.security.permissions import Permissions
 from app.core.security.rate_limiter import limiter
+from app.modules.auth.dtos.auth_context import AuthContext
 from app.modules.categories.dependencies import get_category_service
 from app.modules.categories.dtos import CreateCategoryDTO, UpdateCategoryDTO
 from app.modules.categories.schemas import (
@@ -29,19 +33,26 @@ router = APIRouter(
 )
 @limiter.limit("60/minute")
 async def create_category(
-    
-    request: CreateCategoryRequest,
-    service: AbstractCategoryService = Depends(get_category_service),
+    request: Request,
+    payload: CreateCategoryRequest,
+    service: Annotated[
+        AbstractCategoryService,
+        Depends(get_category_service),
+    ],
+    _: Annotated[
+        AuthContext,
+        Depends(RequirePermission(Permissions.CATEGORY_MANAGE)),
+    ],
 ) -> CategoryResponse:
-    payload = CreateCategoryDTO(
-        name=request.name,
-        description=request.description,
-        status=request.status,
-        image_media_id=request.image_media_id,
+    category_payload = CreateCategoryDTO(
+        name=payload.name,
+        description=payload.description,
+        status=payload.status,
+        image_media_id=payload.image_media_id,
     )
 
     category = await service.create(
-        payload=payload,
+        payload=category_payload,
     )
 
     return CategoryResponse.from_dto(category)
@@ -54,6 +65,14 @@ async def create_category(
 @limiter.limit("120/minute")
 async def list_categories(
     request: Request,
+    service: Annotated[
+        AbstractCategoryService,
+        Depends(get_category_service),
+    ],
+    _: Annotated[
+        AuthContext,
+        Depends(RequirePermission(Permissions.CATEGORY_READ)),
+    ],
     search: str | None = Query(
         default=None,
         min_length=1,
@@ -72,7 +91,6 @@ async def list_categories(
         ge=1,
         le=100,
     ),
-    service: AbstractCategoryService = Depends(get_category_service),
 ) -> CategoryListResponse:
     result = await service.list(
         search=search,
@@ -100,7 +118,14 @@ async def list_categories(
 async def get_category_by_slug(
     request: Request,
     slug: str,
-    service: AbstractCategoryService = Depends(get_category_service),
+    service: Annotated[
+        AbstractCategoryService,
+        Depends(get_category_service),
+    ],
+    _: Annotated[
+        AuthContext,
+        Depends(RequirePermission(Permissions.CATEGORY_READ)),
+    ],
 ) -> CategoryResponse:
     category = await service.get_by_slug(slug)
 
@@ -112,7 +137,14 @@ async def get_category_by_slug(
 async def get_category_by_id(
     request: Request,
     category_id: UUID,
-    service: AbstractCategoryService = Depends(get_category_service),
+    service: Annotated[
+        AbstractCategoryService,
+        Depends(get_category_service),
+    ],
+    _: Annotated[
+        AuthContext,
+        Depends(RequirePermission(Permissions.CATEGORY_READ)),
+    ],
 ) -> CategoryResponse:
     category = await service.get_by_id(category_id)
 
@@ -125,21 +157,28 @@ async def get_category_by_id(
 )
 @limiter.limit("30/minute")
 async def update_category(
-    
+    request: Request,
     category_id: UUID,
-    request: UpdateCategoryRequest,
-    service: AbstractCategoryService = Depends(get_category_service),
+    payload: UpdateCategoryRequest,
+    service: Annotated[
+        AbstractCategoryService,
+        Depends(get_category_service),
+    ],
+    _: Annotated[
+        AuthContext,
+        Depends(RequirePermission(Permissions.CATEGORY_MANAGE)),
+    ],
 ) -> CategoryResponse:
-    payload = UpdateCategoryDTO(
-        name=request.name,
-        description=request.description,
-        status=request.status,
-        image_media_id=request.image_media_id,
+    category_payload = UpdateCategoryDTO(
+        name=payload.name,
+        description=payload.description,
+        status=payload.status,
+        image_media_id=payload.image_media_id,
     )
 
     category = await service.update(
         category_id=category_id,
-        payload=payload,
+        payload=category_payload,
     )
 
     return CategoryResponse.from_dto(category)
@@ -153,6 +192,13 @@ async def update_category(
 async def delete_category(
     request: Request,
     category_id: UUID,
-    service: AbstractCategoryService = Depends(get_category_service),
+    service: Annotated[
+        AbstractCategoryService,
+        Depends(get_category_service),
+    ],
+    _: Annotated[
+        AuthContext,
+        Depends(RequirePermission(Permissions.CATEGORY_MANAGE)),
+    ],
 ) -> None:
     await service.delete(category_id)

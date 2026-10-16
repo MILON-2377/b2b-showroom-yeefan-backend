@@ -1,9 +1,13 @@
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request, status
 
 from app.core.contracts.services.product import AbstractProductService
+from app.core.security.dependencies import RequirePermission
+from app.core.security.permissions import Permissions
 from app.core.security.rate_limiter import limiter
+from app.modules.auth.dtos.auth_context import AuthContext
 from app.modules.products.dependencies import get_product_service
 from app.modules.products.dtos import ProductQueryDTO
 from app.modules.products.schemas import (
@@ -31,7 +35,14 @@ router = APIRouter(
 async def create_product(
     request: Request,
     payload: CreateProductRequest,
-    product_service: AbstractProductService = Depends(get_product_service),
+    product_service: Annotated[
+        AbstractProductService,
+        Depends(get_product_service),
+    ],
+    _: Annotated[
+        AuthContext,
+        Depends(RequirePermission(Permissions.PRODUCT_MANAGE)),
+    ],
 ) -> ProductResponse:
     dto = await product_service.create(
         payload=product_service._to_create_product_dto(payload),
@@ -47,8 +58,18 @@ async def create_product(
 @limiter.limit("120/minute")
 async def list_products(
     request: Request,
-    params: ProductQueryParams = Depends(),
-    service: AbstractProductService = Depends(get_product_service),
+    params: Annotated[
+        ProductQueryParams,
+        Depends(),
+    ],
+    service: Annotated[
+        AbstractProductService,
+        Depends(get_product_service),
+    ],
+    _: Annotated[
+        AuthContext,
+        Depends(RequirePermission(Permissions.PRODUCT_READ)),
+    ],
 ) -> ProductListResponse:
 
     query = ProductQueryDTO(
@@ -78,7 +99,14 @@ async def list_products(
 async def get_product(
     request: Request,
     product_id: UUID,
-    service: AbstractProductService = Depends(get_product_service),
+    service: Annotated[
+        AbstractProductService,
+        Depends(get_product_service),
+    ],
+    _: Annotated[
+        AuthContext,
+        Depends(RequirePermission(Permissions.PRODUCT_READ)),
+    ],
 ) -> ProductDetailQueryResponse:
     dto = await service.get_by_id(product_id)
 
@@ -87,20 +115,27 @@ async def get_product(
 
 @router.patch(
     "/{product_id}",
-    response_model=ProductResponse,
+    response_model=ProductDetailQueryResponse,
 )
 @limiter.limit("60/minute")
 async def update_product(
     request: Request,
     product_id: UUID,
     payload: UpdateProductRequest,
-    service: AbstractProductService = Depends(
-        get_product_service,
-    ),
-) -> ProductResponse:
+    service: Annotated[
+        AbstractProductService,
+        Depends(
+            get_product_service,
+        ),
+    ],
+    _: Annotated[
+        AuthContext,
+        Depends(RequirePermission(Permissions.PRODUCT_MANAGE)),
+    ],
+) -> ProductDetailQueryResponse:
     dto = await service.update(
         product_id=product_id,
         payload=ProductService._to_update_product_dto(payload),
     )
 
-    return ProductResponse.from_dto(dto)
+    return ProductDetailQueryResponse.from_dto(dto)

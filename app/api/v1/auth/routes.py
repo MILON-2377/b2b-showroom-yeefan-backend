@@ -1,3 +1,4 @@
+import logging
 from typing import Annotated
 from uuid import UUID
 
@@ -27,7 +28,6 @@ from app.modules.auth.exceptions import InvalidRefreshTokenError
 from app.modules.auth.schemas.auth import (
     ChangePasswordRequest,
     LoginRequest,
-    RefreshTokenRequest,
     UserResponse,
 )
 from app.modules.auth.schemas.session import SessionResponse
@@ -40,6 +40,8 @@ router = APIRouter(
     prefix="/auth",
     tags=["Authentication"],
 )
+
+logger = logging.getLogger(__name__)
 
 
 @router.post(
@@ -111,6 +113,7 @@ async def refresh(
     )
 
 
+
 @router.post(
     "/logout",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -119,7 +122,6 @@ async def refresh(
 async def logout(
     request: Request,
     response: Response,
-    payload: RefreshTokenRequest,
     auth_service: Annotated[
         AbstractAuthService,
         Depends(get_auth_service),
@@ -129,9 +131,20 @@ async def logout(
         Depends(get_cookie_service),
     ],
 ) -> None:
-    await auth_service.logout(
-        refresh_token=payload.refresh_token,
+
+    logger.debug("Logout requested")
+
+    refresh_token = cookie_service.get_refresh_token(request=request)
+
+    logger.info(
+        "Logout refresh cookie present=%s",
+        refresh_token is not None,
     )
+
+    if refresh_token:
+        await auth_service.logout(
+            refresh_token=refresh_token,
+        )
 
     cookie_service.clear_auth_cookies(response)
 

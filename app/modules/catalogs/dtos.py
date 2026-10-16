@@ -98,3 +98,19 @@ class AdminCatalogListDTO:
     page: int
     page_size: int
     total_pages: int
+
+
+
+@dataclass(frozen=True)
+class CatalogDetailQueryDTO:
+    id: UUID
+    collection_id: UUID
+    pdf_media_asset_id: UUID
+    cover_media_asset_id: UUID
+    title: str
+    description: str | None
+    status: RecordStatus
+    pdf_url: str
+    cover_image_url: str
+    created_at: datetime
+    updated_at: datetime

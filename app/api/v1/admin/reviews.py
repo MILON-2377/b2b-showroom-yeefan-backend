@@ -1,10 +1,14 @@
 from math import ceil
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request, status
 
 from app.core.contracts.services.review import AbstractReviewService
+from app.core.security.dependencies import RequirePermission
+from app.core.security.permissions import Permissions
 from app.core.security.rate_limiter import limiter
+from app.modules.auth.dtos.auth_context import AuthContext
 from app.modules.reviews.dependencies import get_review_service
 from app.modules.reviews.dtos import (
     UpdateReviewDTO,
@@ -20,10 +24,7 @@ from app.modules.reviews.schemas import (
     UpdateReviewStatusRequest,
 )
 
-router = APIRouter(
-    prefix="/reviews",
-    tags=["admin-reviews"]
-)
+router = APIRouter(prefix="/reviews", tags=["admin-reviews"])
 
 
 @router.get(
@@ -33,6 +34,16 @@ router = APIRouter(
 @limiter.limit("120/minute")
 async def list_reviews(
     request: Request,
+    service: Annotated[
+        AbstractReviewService,
+        Depends(
+            get_review_service,
+        ),
+    ],
+    _: Annotated[
+        AuthContext,
+        Depends(RequirePermission(Permissions.REVIEW_READ)),
+    ],
     status_filter: ReviewStatus | None = Query(
         default=None,
         alias="status",
@@ -45,9 +56,6 @@ async def list_reviews(
         default=20,
         ge=1,
         le=100,
-    ),
-    service: AbstractReviewService = Depends(
-        get_review_service,
     ),
 ) -> ReviewListResponse:
     result = await service.list(
@@ -75,9 +83,16 @@ async def list_reviews(
 async def get_review(
     request: Request,
     review_id: UUID,
-    service: AbstractReviewService = Depends(
-        get_review_service,
-    ),
+    service: Annotated[
+        AbstractReviewService,
+        Depends(
+            get_review_service,
+        ),
+    ],
+    _: Annotated[
+        AuthContext,
+        Depends(RequirePermission(Permissions.REVIEW_READ)),
+    ],
 ) -> ReviewResponse:
     result = await service.get_by_id(review_id)
 
@@ -93,9 +108,16 @@ async def update_review(
     request: Request,
     review_id: UUID,
     payload: UpdateReviewRequest,
-    service: AbstractReviewService = Depends(
-        get_review_service,
-    ),
+    service: Annotated[
+        AbstractReviewService,
+        Depends(
+            get_review_service,
+        ),
+    ],
+    _: Annotated[
+        AuthContext,
+        Depends(RequirePermission(Permissions.REVIEW_MANAGE)),
+    ],
 ) -> ReviewResponse:
     dto = UpdateReviewDTO(
         name=payload.name,
@@ -125,9 +147,16 @@ async def update_review_status(
     request: Request,
     review_id: UUID,
     payload: UpdateReviewStatusRequest,
-    service: AbstractReviewService = Depends(
-        get_review_service,
-    ),
+    service: Annotated[
+        AbstractReviewService,
+        Depends(
+            get_review_service,
+        ),
+    ],
+    _: Annotated[
+        AuthContext,
+        Depends(RequirePermission(Permissions.REVIEW_MANAGE)),
+    ],
 ) -> ReviewResponse:
     dto = UpdateReviewStatusDTO(
         status=payload.status,
@@ -150,9 +179,16 @@ async def update_review_notes(
     request: Request,
     review_id: UUID,
     payload: UpdateReviewNotesRequest,
-    service: AbstractReviewService = Depends(
-        get_review_service,
-    ),
+    service: Annotated[
+        AbstractReviewService,
+        Depends(
+            get_review_service,
+        ),
+    ],
+    _: Annotated[
+        AuthContext,
+        Depends(RequirePermission(Permissions.REVIEW_MANAGE)),
+    ],
 ) -> ReviewResponse:
     dto = UpdateReviewNotesDTO(
         internal_notes=payload.internal_notes,
@@ -174,8 +210,15 @@ async def update_review_notes(
 async def delete_review(
     request: Request,
     review_id: UUID,
-    service: AbstractReviewService = Depends(
-        get_review_service,
-    ),
+    service: Annotated[
+        AbstractReviewService,
+        Depends(
+            get_review_service,
+        ),
+    ],
+    _: Annotated[
+        AuthContext,
+        Depends(RequirePermission(Permissions.REVIEW_MANAGE)),
+    ],
 ) -> None:
     await service.delete(review_id)

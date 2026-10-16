@@ -3,6 +3,7 @@ from uuid import UUID
 
 from app.core.database.models import Collection
 from app.modules.collections.dtos import (
+    AvailableCatalogCollectionsDTO,
     CollectionDTO,
     PublicCollectionListDTO,
     PublicCollectionQueryDTO,
@@ -14,6 +15,17 @@ from app.modules.collections.query import (
 
 
 class AbstractCollectionService(ABC):
+
+    @abstractmethod
+    async def list_by_unused_catalogs(
+        self,
+        *,
+        page: int,
+        page_size: int,
+        search: str | None = None,
+    ) -> AvailableCatalogCollectionsDTO:
+        raise NotImplementedError
+
     @abstractmethod
     async def list_public(
         self,

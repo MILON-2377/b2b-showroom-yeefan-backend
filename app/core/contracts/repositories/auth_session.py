@@ -6,6 +6,10 @@ from app.modules.auth.models.session import Session
 
 class AbstractSessionRepository(ABC):
     @abstractmethod
+    async def get_active_by_user_id(self, user_id: UUID) -> list[Session]:
+        raise NotImplementedError
+
+    @abstractmethod
     async def create(
         self,
         session: Session,

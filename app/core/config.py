@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 15
     refresh_token_expire_days: int = 7
     session_expire_days: int = 30
+    max_sessions_per_user: int = 2
 
     # Cookie
     access_token_cookie_name: str = "__Host-access_token"

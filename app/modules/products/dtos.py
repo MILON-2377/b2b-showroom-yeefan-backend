@@ -65,7 +65,6 @@ class ProductDTO:
 
 @dataclass(frozen=True)
 class CreateProductDTO:
-    brand_id: UUID
     collection_id: UUID
     category_id: UUID
 
@@ -164,6 +163,19 @@ class ProductMediaQueryDTO:
     sort_order: int
     is_primary: bool
 
+@dataclass(frozen=True)
+class UpdateProductMediaQueryDTO:
+    id: UUID
+    media_asset_id: UUID
+    product_id: UUID
+    alt_text: str | None
+    url: str
+    mime_type: str | None
+    width: int | None
+    height: int | None
+    sort_order: int
+    is_primary: bool
+
 
 @dataclass(frozen=True)
 class ProductDetailQueryDTO:
@@ -180,7 +192,7 @@ class ProductDetailQueryDTO:
     created_at: datetime
     updated_at: datetime
 
-    media: list[ProductMediaQueryDTO]
+    media: list[UpdateProductMediaQueryDTO]
     details: ProductDetailDTO | None
     colors: list[ProductColorDTO]
     sizes: list[ProductSizeDTO]
@@ -196,7 +208,6 @@ class UpdateProductDTO:
     name: str | None | Any = UNSET
     description: str | None | Any = UNSET
 
-    brand_id: UUID | None | Any = UNSET
     collection_id: UUID | None | Any = UNSET
     category_id: UUID | None | Any = UNSET
 

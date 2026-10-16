@@ -31,3 +31,12 @@ class PublicCollectionListDTO:
     page: int
     page_size: int
     total_pages: int
+
+
+
+@dataclass(frozen=True)
+class AvailableCatalogCollectionsDTO:
+    items: list[CollectionDTO]
+    total: int
+    page: int
+    page_size: int

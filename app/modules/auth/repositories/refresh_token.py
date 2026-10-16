@@ -19,7 +19,25 @@ class RefreshTokenRepository(AbstractRefreshTokenRepository):
 
         self.session.add(refresh_token)
 
+        
+
         return refresh_token
+
+    async def get_active_by_session_id(
+        self,
+        session_id: UUID,
+    ) -> list[RefreshToken]:
+        now = datetime.now(timezone.utc)
+
+        statement = select(RefreshToken).where(
+            RefreshToken.session_id == session_id,
+            RefreshToken.revoked_at.is_(None),
+            RefreshToken.expires_at > now,
+        )
+
+        result = await self.session.execute(statement)
+
+        return list(result.scalars().all())
 
     async def get_by_id(self, jti: str) -> RefreshToken | None:
 

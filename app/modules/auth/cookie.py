@@ -52,9 +52,15 @@ class CookieService(AbstractCookieService):
         response.delete_cookie(
             key=self.cookie_policy.access_token_name,
             path=self.cookie_policy.access_token_path,
+            secure=self.cookie_policy.cookie_settings.auth_cookie_secure,
+            httponly=self.cookie_policy.cookie_settings.auth_cookie_httponly,
+            samesite=self.cookie_policy.cookie_settings.auth_cookie_samesite,
         )
 
         response.delete_cookie(
             key=self.cookie_policy.refresh_token_name,
             path=self.cookie_policy.refresh_token_path,
+            secure=self.cookie_policy.cookie_settings.auth_cookie_secure,
+            httponly=self.cookie_policy.cookie_settings.auth_cookie_httponly,
+            samesite=self.cookie_policy.cookie_settings.auth_cookie_samesite,
         )

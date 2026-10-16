@@ -7,7 +7,10 @@ from app.core.contracts.services.company_knowledge import (
     AbstractCompanyKnowledgeService,
 )
 from app.core.models import RecordStatus
+from app.core.security.dependencies import RequirePermission
+from app.core.security.permissions import Permissions
 from app.core.security.rate_limiter import limiter
+from app.modules.auth.dtos.auth_context import AuthContext
 from app.modules.company_knowledge.dependencies import (
     get_company_knowledge_service,
 )
@@ -36,17 +39,22 @@ router = APIRouter(
 )
 @limiter.limit("60/minute")
 async def create_company_knowledge(
-    request: CreateCompanyKnowledgeRequest,
+    request: Request,
+    payload: CreateCompanyKnowledgeRequest,
     service: Annotated[
         AbstractCompanyKnowledgeService,
         Depends(get_company_knowledge_service),
     ],
+    _: Annotated[
+        AuthContext,
+        Depends(RequirePermission(Permissions.COMPANY_KNOWLEDGE_MANAGE)),
+    ],
 ) -> CompanyKnowledgeResponse:
     knowledge = await service.create(
         CreateCompanyKnowledgeDTO(
-            title=request.title,
-            category=request.category,
-            content=request.content,
+            title=payload.title,
+            category=payload.category,
+            content=payload.content,
         )
     )
     return CompanyKnowledgeResponse.model_validate(knowledge)
@@ -62,6 +70,10 @@ async def list_company_knowledge(
     service: Annotated[
         AbstractCompanyKnowledgeService,
         Depends(get_company_knowledge_service),
+    ],
+    _: Annotated[
+        AuthContext,
+        Depends(RequirePermission(Permissions.COMPANY_KNOWLEDGE_READ)),
     ],
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
@@ -98,6 +110,10 @@ async def get_company_knowledge(
         AbstractCompanyKnowledgeService,
         Depends(get_company_knowledge_service),
     ],
+    _: Annotated[
+        AuthContext,
+        Depends(RequirePermission(Permissions.COMPANY_KNOWLEDGE_READ)),
+    ],
 ) -> CompanyKnowledgeResponse:
     knowledge = await service.get_by_id(knowledge_id)
     return CompanyKnowledgeResponse.model_validate(knowledge)
@@ -109,16 +125,21 @@ async def get_company_knowledge(
 )
 @limiter.limit("30/minute")
 async def update_company_knowledge(
+    request: Request,
     knowledge_id: UUID,
-    request: UpdateCompanyKnowledgeRequest,
+    payload: UpdateCompanyKnowledgeRequest,
     service: Annotated[
         AbstractCompanyKnowledgeService,
         Depends(get_company_knowledge_service),
     ],
+    _: Annotated[
+        AuthContext,
+        Depends(RequirePermission(Permissions.COMPANY_KNOWLEDGE_MANAGE)),
+    ],
 ) -> CompanyKnowledgeResponse:
     knowledge = await service.update(
         knowledge_id,
-        UpdateCompanyKnowledgeDTO(**request.model_dump(exclude_unset=True)),
+        UpdateCompanyKnowledgeDTO(**payload.model_dump(exclude_unset=True)),
     )
     return CompanyKnowledgeResponse.model_validate(knowledge)
 
@@ -134,6 +155,10 @@ async def delete_company_knowledge(
     service: Annotated[
         AbstractCompanyKnowledgeService,
         Depends(get_company_knowledge_service),
+    ],
+    _: Annotated[
+        AuthContext,
+        Depends(RequirePermission(Permissions.COMPANY_KNOWLEDGE_MANAGE)),
     ],
 ) -> Response:
     await service.delete(knowledge_id)

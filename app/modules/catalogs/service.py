@@ -2,11 +2,13 @@ import math
 from uuid import UUID
 
 from app.core.contracts.services.catalog import AbstractCatalogService
+from app.core.contracts.services.media_upload import AbstractMediaUploadService
 from app.core.contracts.unit_of_work import AbstractUnitOfWork
 from app.modules.catalogs.dtos import (
     AdminCatalogDTO,
     AdminCatalogListDTO,
     AdminCatalogQueryDTO,
+    CatalogDetailQueryDTO,
     CatalogDTO,
     CreateCatalogDTO,
     PublicCatalogDTO,
@@ -32,10 +34,10 @@ from app.modules.media.model import MediaAssetStatus, MediaType
 
 class CatalogService(AbstractCatalogService):
     def __init__(
-        self,
-        uow: AbstractUnitOfWork,
+        self, uow: AbstractUnitOfWork, media_upload_service: AbstractMediaUploadService
     ) -> None:
         self.uow = uow
+        self.media_upload_service = media_upload_service
 
     async def list_admin(
         self,
@@ -78,13 +80,29 @@ class CatalogService(AbstractCatalogService):
     async def get_by_id(
         self,
         catalog_id: UUID,
-    ) -> CatalogDTO:
+    ) -> CatalogDetailQueryDTO:
         catalog = await self.uow.catalogs.get_by_id(catalog_id)
 
         if catalog is None:
             raise CatalogNotFoundError(catalog_id)
 
-        return self._to_dto(catalog)
+        return CatalogDetailQueryDTO(
+            id=catalog.id,
+            collection_id=catalog.collection_id,
+            pdf_media_asset_id=catalog.pdf_media_asset_id,
+            cover_media_asset_id=catalog.cover_media_asset_id,
+            title=catalog.title,
+            description=catalog.description,
+            status=catalog.status,
+            pdf_url=self.media_upload_service.get_asset_url(
+                media_asset=catalog.pdf_media_asset,
+            ),
+            cover_image_url=self.media_upload_service.get_asset_url(
+                media_asset=catalog.cover_media_asset,
+            ),
+            created_at=catalog.created_at,
+            updated_at=catalog.updated_at,
+        )
 
     async def get_public_by_collection_id(
         self,
@@ -237,24 +255,62 @@ class CatalogService(AbstractCatalogService):
         if catalog is None:
             raise CatalogNotFoundError(catalog_id)
 
-        if payload.media_asset_id is not None:
-            media_asset = await self.uow.media_assets.get_by_id(
-                payload.media_asset_id,
+        old_pdf_media_id = catalog.pdf_media_asset_id
+        old_cover_media_id = catalog.cover_media_asset_id
+
+        new_pdf_media_id = old_pdf_media_id
+        new_cover_media_id = old_cover_media_id
+
+        # Validate replacement PDF.
+        if (
+            payload.pdf_media_asset_id is not None
+            and payload.pdf_media_asset_id != old_pdf_media_id
+        ):
+            pdf_asset = await self.uow.media_assets.get_by_id(
+                payload.pdf_media_asset_id,
             )
 
-            if media_asset is None:
-                raise MediaAssetNotFoundError(payload.media_asset_id)
+            if pdf_asset is None:
+                raise MediaAssetNotFoundError(
+                    payload.pdf_media_asset_id,
+                )
 
-            if media_asset.status != MediaAssetStatus.READY:
-                raise MediaAssetNotReadyError(media_asset.id)
+            if pdf_asset.status != MediaAssetStatus.READY:
+                raise MediaAssetNotReadyError(pdf_asset.id)
 
             if (
-                media_asset.media_type != MediaType.PDF
-                or media_asset.mime_type != "application/pdf"
+                pdf_asset.media_type != MediaType.PDF
+                or pdf_asset.mime_type != "application/pdf"
             ):
-                raise InvalidCatalogMediaError(media_asset.id)
+                raise InvalidCatalogMediaError(pdf_asset.id)
 
-            catalog.media_asset_id = media_asset.id
+            new_pdf_media_id = pdf_asset.id
+
+        # Validate replacement cover image.
+        if (
+            payload.cover_media_asset_id is not None
+            and payload.cover_media_asset_id != old_cover_media_id
+        ):
+            cover_asset = await self.uow.media_assets.get_by_id(
+                payload.cover_media_asset_id,
+            )
+
+            if cover_asset is None:
+                raise MediaAssetNotFoundError(
+                    payload.cover_media_asset_id,
+                )
+
+            if cover_asset.status != MediaAssetStatus.READY:
+                raise MediaAssetNotReadyError(cover_asset.id)
+
+            if cover_asset.media_type != MediaType.IMAGE:
+                raise InvalidCatalogMediaError(cover_asset.id)
+
+            new_cover_media_id = cover_asset.id
+
+        # Update catalog fields.
+        catalog.pdf_media_asset_id = new_pdf_media_id
+        catalog.cover_media_asset_id = new_cover_media_id
 
         if payload.title is not None:
             catalog.title = payload.title
@@ -262,11 +318,31 @@ class CatalogService(AbstractCatalogService):
         if payload.description is not None:
             catalog.description = payload.description
 
-        catalog = await self.uow.catalogs.update(catalog)
+        if payload.status is not None:
+            catalog.status = payload.status
+
+        await self.uow.catalogs.update(catalog)
+
+        media_ids_to_delete = []
+
+        if old_pdf_media_id is not None and old_pdf_media_id != new_pdf_media_id:
+            media_ids_to_delete.append(old_pdf_media_id)
+
+        if (
+            old_cover_media_id is not None
+            and old_cover_media_id != new_cover_media_id
+            and old_cover_media_id not in media_ids_to_delete
+        ):
+            media_ids_to_delete.append(old_cover_media_id)
+
+        if media_ids_to_delete:
+            await self.media_upload_service.mark_for_deletion_many(
+                media_asset_ids=media_ids_to_delete,
+            )
 
         await self.uow.commit()
 
-        return self._to_dto(catalog)
+        return await self.get_by_id(catalog_id)
 
     async def delete(
         self,
@@ -277,7 +353,24 @@ class CatalogService(AbstractCatalogService):
         if catalog is None:
             raise CatalogNotFoundError(catalog_id)
 
+        media_ids_to_delete = list(
+            {
+                media_id
+                for media_id in (
+                    catalog.pdf_media_asset_id,
+                    catalog.cover_media_asset_id,
+                )
+                if media_id is not None
+            }
+        )
+
         await self.uow.catalogs.delete(catalog)
+
+        if media_ids_to_delete:
+            await self.media_upload_service.mark_for_deletion_many(
+                media_asset_ids=media_ids_to_delete,
+            )
+        await self.uow.commit()
 
     @staticmethod
     def _to_dto(catalog: Catalog) -> CatalogDTO:
@@ -287,6 +380,7 @@ class CatalogService(AbstractCatalogService):
             pdf_media_asset_id=catalog.pdf_media_asset_id,
             cover_media_asset_id=catalog.cover_media_asset_id,
             title=catalog.title,
+            status=catalog.status,
             description=catalog.description,
             created_at=catalog.created_at,
             updated_at=catalog.updated_at,

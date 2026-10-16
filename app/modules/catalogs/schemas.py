@@ -5,10 +5,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.models import RecordStatus
-from app.modules.catalogs.dtos import (
-    CreateCatalogDTO,
-    UpdateCatalogDTO,
-)
+from app.modules.catalogs.dtos import CatalogDTO, CreateCatalogDTO, UpdateCatalogDTO
 
 
 class CreateCatalogRequest(BaseModel):
@@ -64,6 +61,20 @@ class CatalogResponse(BaseModel):
     status: RecordStatus
     created_at: datetime
     updated_at: datetime
+
+    @classmethod
+    def from_dto(cls, dto: CatalogDTO) -> "CatalogResponse":
+        return cls(
+            id=dto.id,
+            collection_id=dto.collection_id,
+            pdf_media_asset_id=dto.pdf_media_asset_id,
+            cover_media_asset_id=dto.cover_media_asset_id,
+            title=dto.title,
+            description=dto.description,
+            status=dto.status,
+            created_at=dto.created_at,
+            updated_at=dto.updated_at,
+        )
 
 
 class PublicCatalogQueryParams(BaseModel):
@@ -138,3 +149,19 @@ class AdminCatalogListResponse(BaseModel):
     page: int
     page_size: int
     total_pages: int
+
+
+class CatalogDetailResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    collection_id: UUID
+    pdf_media_asset_id: UUID
+    cover_media_asset_id: UUID
+    title: str
+    description: str | None
+    status: RecordStatus
+    pdf_url: str
+    cover_image_url: str
+    created_at: datetime
+    updated_at: datetime
