@@ -20,6 +20,7 @@ from app.modules.auth.models.login_challenge import LoginChallenge
 class LoginChallengeService(AbstractLoginChallengeService):
     CODE_LENGTH = 6
     CODE_TTL_MINUTES = 5
+    MAX_ATTEMPTS = 5
 
     def __init__(
         self,
