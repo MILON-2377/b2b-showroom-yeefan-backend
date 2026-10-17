@@ -15,11 +15,10 @@ class RefreshTokenRepository(AbstractRefreshTokenRepository):
 
         self.session = session
 
-    def create(self, refresh_token: RefreshToken) -> RefreshToken:
+    async def create(self, refresh_token: RefreshToken) -> RefreshToken:
 
         self.session.add(refresh_token)
-
-        
+        await self.session.flush()
 
         return refresh_token
 
