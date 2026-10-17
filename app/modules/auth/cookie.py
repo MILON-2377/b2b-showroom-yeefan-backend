@@ -20,6 +20,7 @@ class CookieService(AbstractCookieService):
     ) -> None:
         access_kwargs = self.cookie_policy.access_cookie_kwargs()
 
+
         response.set_cookie(
             value=access_token,
             expires=access_token_expires_at,

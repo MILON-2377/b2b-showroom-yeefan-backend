@@ -163,3 +163,33 @@ class CannotDeactivateOwnAccountError(ForbiddenError):
             "You cannot deactivate your own account.",
             code="CANNOT_DEACTIVATE_OWN_ACCOUNT",
         )
+
+
+class InvalidLoginChallengeError(UnauthorizedError):
+    """Raised when a login verification challenge is invalid."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            "Invalid or already-used login verification code",
+            code="INVALID_LOGIN_CHALLENGE",
+        )
+
+
+class LoginChallengeExpiredError(UnauthorizedError):
+    """Raised when a login verification challenge has expired."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            "Login verification code has expired. Please request a new code.",
+            code="LOGIN_CHALLENGE_EXPIRED",
+        )
+
+
+class LoginChallengeAttemptsExceededError(ForbiddenError):
+    """Raised when the maximum number of login verification attempts is exceeded."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            "Too many incorrect verification attempts. Please request a new code.",
+            code="LOGIN_CHALLENGE_ATTEMPTS_EXCEEDED",
+        )

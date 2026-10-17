@@ -24,11 +24,13 @@ from app.modules.auth.dependencies import (
     get_user_service,
 )
 from app.modules.auth.dtos.auth_context import AuthContext
+from app.modules.auth.dtos.login_challenge import LoginChallengeDTO
 from app.modules.auth.exceptions import InvalidRefreshTokenError
 from app.modules.auth.schemas.auth import (
     ChangePasswordRequest,
     LoginRequest,
     UserResponse,
+    VerifyLoginCodeRequest,
 )
 from app.modules.auth.schemas.session import SessionResponse
 from app.modules.auth.schemas.user_profile import (
@@ -46,11 +48,32 @@ logger = logging.getLogger(__name__)
 
 @router.post(
     "/login",
-    status_code=status.HTTP_204_NO_CONTENT,
+    status_code=status.HTTP_200_OK,
+    response_model=LoginChallengeDTO,
 )
 @limiter.limit("5/minute")
 async def login(
     payload: LoginRequest,
+    request: Request,
+    auth_service: Annotated[
+        AbstractAuthService,
+        Depends(get_auth_service),
+    ],
+) -> LoginChallengeDTO:
+    return await auth_service.login(
+        email=payload.email,
+        password=payload.password,
+    )
+
+
+@router.post(
+    "/verify-login-code",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+)
+@limiter.limit("5/minute")
+async def verify_login_code(
+    payload: VerifyLoginCodeRequest,
     request: Request,
     response: Response,
     auth_service: Annotated[
@@ -62,12 +85,9 @@ async def login(
         Depends(get_cookie_service),
     ],
 ) -> None:
-    tokens = await auth_service.login(
-        email=payload.email,
-        password=payload.password,
-        device_name=payload.device_name,
-        user_agent=request.headers.get("user-agent"),
-        ip_address=request.client.host if request.client else None,
+    tokens = await auth_service.verify_login_code(
+        challenge_id=payload.challenge_id,
+        code=payload.code,
     )
 
     cookie_service.set_auth_cookies(
@@ -111,7 +131,6 @@ async def refresh(
         refresh_token=tokens.refresh_token,
         access_token_expires_at=tokens.expires_at,
     )
-
 
 
 @router.post(

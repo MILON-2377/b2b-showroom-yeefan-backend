@@ -19,6 +19,9 @@ from app.core.contracts.repositories.inquiry import AbstractInquiryRepository
 from app.core.contracts.repositories.inquiry_product import (
     AbstractInquiryProductRepository,
 )
+from app.core.contracts.repositories.login_challenge import (
+    AbstractLoginChallengeRepository,
+)
 from app.core.contracts.repositories.media_asset import AbstractMediaAssetRepository
 from app.core.contracts.repositories.product import (
     AbstractProductRepository,
@@ -49,6 +52,7 @@ from app.core.contracts.repositories.user import AbstractUserRepository
 from app.core.contracts.repositories.user_profile import AbstractUserProfileRepository
 from app.core.contracts.unit_of_work import AbstractUnitOfWork
 from app.modules.about_videos.repository import AboutVideoRepository
+from app.modules.auth.repositories.login_challenge import LoginChallengeRepository
 from app.modules.auth.repositories.refresh_token import RefreshTokenRepository
 from app.modules.auth.repositories.session import SessionRepository
 from app.modules.auth.repositories.user import UserRepository
@@ -89,6 +93,7 @@ class UnitOfWork(AbstractUnitOfWork):
 
         self.session = session
 
+        self._login_challenge_repository: AbstractLoginChallengeRepository | None = None
         self._dashboard_repository: AbstractDashboardRepository | None = None
         self._about_video_repository: AbstractAboutVideoRepository | None = None
         self._company_knowledge_repository: (
@@ -125,6 +130,12 @@ class UnitOfWork(AbstractUnitOfWork):
         ) = None
 
         self._product_repository: AbstractProductRepository | None = None
+
+    @property
+    def login_challenges(self) -> AbstractLoginChallengeRepository:
+        if self._login_challenge_repository is None:
+            self._login_challenge_repository = LoginChallengeRepository(self.session)
+        return self._login_challenge_repository
 
     @property
     def dashboard(self) -> AbstractDashboardRepository:

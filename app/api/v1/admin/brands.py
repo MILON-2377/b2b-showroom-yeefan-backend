@@ -61,7 +61,7 @@ async def create_brand(
     )
 
 
-@router.get("/", response_model=BrandListResponse)
+@router.get("", response_model=BrandListResponse)
 @limiter.limit("120/minute")
 async def list_brands(
     request: Request,

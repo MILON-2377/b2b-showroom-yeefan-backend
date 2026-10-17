@@ -6,15 +6,20 @@ from uuid import UUID, uuid4
 from app.core.config import settings
 from app.core.contracts.services.auth import AbstractAuthService
 from app.core.contracts.services.auth_session import AbstractSessionService
+from app.core.contracts.services.email_service import AbstractEmailService
+from app.core.contracts.services.login_challenge import AbstractLoginChallengeService
 from app.core.contracts.services.token import AbstractTokenService
 from app.core.contracts.unit_of_work import AbstractUnitOfWork
 from app.core.security.password_manager import PasswordManager
 from app.modules.auth.dtos.auth import AuthTokensDTO
 from app.modules.auth.dtos.auth_context import AuthContext
+from app.modules.auth.dtos.login_challenge import LoginChallengeDTO
 from app.modules.auth.exceptions import (
     InvalidAccessTokenError,
     InvalidCredentialsError,
+    InvalidLoginChallengeError,
     InvalidRefreshTokenError,
+    LoginChallengeAttemptsExceededError,
     RefreshTokenExpiredError,
     RefreshTokenReuseDetectedError,
     SessionExpiredError,
@@ -38,12 +43,16 @@ class AuthService(AbstractAuthService):
         password_manager: PasswordManager,
         token_service: AbstractTokenService,
         session_service: AbstractSessionService,
+        login_challenge_service: AbstractLoginChallengeService,
+        email_service: AbstractEmailService,
     ):
 
         self.uow = uow
         self.password_manager = password_manager
         self.token_service = token_service
         self.session_service = session_service
+        self.login_challenge_service = login_challenge_service
+        self.email_service = email_service
 
     async def register(
         self,
@@ -77,10 +86,7 @@ class AuthService(AbstractAuthService):
         self,
         email: str,
         password: str,
-        device_name: str | None = None,
-        user_agent: str | None = None,
-        ip_address: str | None = None,
-    ) -> AuthTokensDTO:
+    ) -> LoginChallengeDTO:
 
         user = await self.uow.users.get_by_email(email=email)
 
@@ -89,7 +95,10 @@ class AuthService(AbstractAuthService):
             raise InvalidCredentialsError()
 
         if not user.is_active:
-            logger.warning("Login rejected: inactive account user_id=%s", user.id)
+            logger.warning(
+                "Login rejected: inactive account user_id=%s",
+                user.id,
+            )
             raise InvalidCredentialsError()
 
         if not self.password_manager.verify_password(
@@ -102,27 +111,81 @@ class AuthService(AbstractAuthService):
             )
             raise InvalidCredentialsError()
 
+        challenge, code = await self.login_challenge_service.create_challenge(
+            user_id=user.id,
+        )
+
+        await self.uow.commit()
+
+        try:
+            await self.email_service.send_login_code(
+                to_email=user.email,
+                code=code,
+            )
+        except Exception:
+            logger.exception(
+                "Login verification email delivery failed user_id=%s",
+                user.id,
+            )
+            raise
+
+        return LoginChallengeDTO(
+            challenge_id=challenge.id,
+            message="Verification code sent to your registered email.",
+            expires_in=self.login_challenge_service.CODE_TTL_MINUTES * 60,
+        )
+
+    async def verify_login_code(
+        self,
+        *,
+        challenge_id: UUID,
+        code: str,
+    ) -> AuthTokensDTO:
+        verification = await self.login_challenge_service.verify_challenge(
+            challenge_id=challenge_id,
+            code=code,
+        )
+
+        # Persist failed attempts before raising an exception.
+        if not verification.is_valid:
+            await self.uow.commit()
+
+            if verification.error_code == "ATTEMPTS_EXCEEDED":
+                raise LoginChallengeAttemptsExceededError()
+
+            raise InvalidLoginChallengeError()
+
+        user_id = verification.user_id
+
+        # Defensive check; a valid result must contain a user ID.
+        if user_id is None:
+            raise InvalidLoginChallengeError()
+
+        user = await self.uow.users.get_by_id(user_id)
+
+        if user is None or not user.is_active:
+            raise InvalidCredentialsError()
+
         now = datetime.now(timezone.utc)
 
+        # Enforce the configured concurrent-session limit.
         active_sessions = await self.uow.auth_sessions.get_active_by_user_id(
-            user_id=user.id
+            user_id=user.id,
         )
 
         max_sessions = settings.max_sessions_per_user
 
         if len(active_sessions) >= max_sessions:
-            session_to_revoke = active_sessions[
+            sessions_to_revoke = active_sessions[
                 : len(active_sessions) - max_sessions + 1
             ]
 
-            for session in session_to_revoke:
+            for session in sessions_to_revoke:
                 await self._revoke_session_and_tokens(session=session)
 
+        # Create the authenticated session after successful verification.
         session = Session(
             user_id=user.id,
-            device_name=device_name,
-            user_agent=user_agent,
-            ip_address=ip_address,
             last_active_at=now,
             expires_at=self.token_service.refresh_token_expires_at(now),
         )
@@ -130,24 +193,28 @@ class AuthService(AbstractAuthService):
         await self.uow.auth_sessions.create(session)
 
         family_id = uuid4()
-
         raw_refresh_token = self.token_service.generate_refresh_token()
 
         refresh_token = RefreshToken(
             session_id=session.id,
             jti=secrets.token_urlsafe(32),
             family_id=family_id,
-            token_hash=self.token_service.hash_refresh_token(raw_refresh_token),
+            token_hash=self.token_service.hash_refresh_token(
+                raw_refresh_token,
+            ),
             expires_at=self.token_service.refresh_token_expires_at(now),
         )
 
-        self.uow.refresh_tokens.create(refresh_token)
+        await self.uow.refresh_tokens.create(refresh_token)
+
         await self.uow.flush()
 
         access_token = self.token_service.create_access_token(
-            subject=str(user.id), session_id=session.id
+            subject=str(user.id),
+            session_id=session.id,
         )
 
+        # Commit challenge consumption, session and refresh token atomically.
         await self.uow.commit()
 
         return AuthTokensDTO(

@@ -7,6 +7,8 @@ from app.core.contracts.security.jwt_manager import AbstractJwtManager
 from app.core.contracts.services.auth import AbstractAuthService
 from app.core.contracts.services.auth_session import AbstractSessionService
 from app.core.contracts.services.cookie import AbstractCookieService
+from app.core.contracts.services.email_service import AbstractEmailService
+from app.core.contracts.services.login_challenge import AbstractLoginChallengeService
 from app.core.contracts.services.media_upload import AbstractMediaUploadService
 from app.core.contracts.services.token import AbstractTokenService
 from app.core.contracts.services.user import AbstractUserService
@@ -29,6 +31,8 @@ from app.modules.auth.exceptions import (
 )
 from app.modules.auth.models.user import UserRole
 from app.modules.auth.services.auth import AuthService
+from app.modules.auth.services.brevo_email_service import BrevoEmailService
+from app.modules.auth.services.login_challenge import LoginChallengeService
 from app.modules.auth.services.refresh_token import TokenService
 from app.modules.auth.services.session import SessionService
 from app.modules.auth.services.user import UserService
@@ -99,6 +103,16 @@ def get_session_service(
     )
 
 
+def get_login_challenge_service(
+    uow: Annotated[AbstractUnitOfWork, Depends(get_uow)],
+) -> AbstractLoginChallengeService:
+    return LoginChallengeService(uow=uow)
+
+
+def get_email_service() -> AbstractEmailService:
+    return BrevoEmailService()
+
+
 def get_auth_service(
     uow: Annotated[
         AbstractUnitOfWork,
@@ -116,12 +130,18 @@ def get_auth_service(
         AbstractSessionService,
         Depends(get_session_service),
     ],
+    login_challenge_service: Annotated[
+        AbstractLoginChallengeService, Depends(get_login_challenge_service)
+    ],
+    email_service: Annotated[AbstractEmailService, Depends(get_email_service)],
 ) -> AbstractAuthService:
     return AuthService(
         uow=uow,
         password_manager=password_manager,
         token_service=token_service,
         session_service=session_service,
+        login_challenge_service=login_challenge_service,
+        email_service=email_service,
     )
 
 
@@ -236,3 +256,6 @@ def get_user_service(
         session_service=session_service,
         user_profile_service=user_profile_service,
     )
+
+
+

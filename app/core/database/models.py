@@ -1,4 +1,5 @@
 from app.modules.about_videos.model import AboutVideo
+from app.modules.auth.models.login_challenge import LoginChallenge
 from app.modules.auth.models.refresh_token import RefreshToken
 from app.modules.auth.models.session import Session
 from app.modules.auth.models.user import User, UserRole
@@ -55,4 +56,5 @@ __all__ = [
     "Catalog",
     "CompanyKnowledge",
     "AboutVideo",
+    "LoginChallenge",
 ]

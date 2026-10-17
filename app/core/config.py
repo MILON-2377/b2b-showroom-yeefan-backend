@@ -41,6 +41,12 @@ class Settings(BaseSettings):
         "http://localhost:3000",
     ]
 
+
+    # Email
+    brevo_api_key: str
+    brevo_sender_email: str
+    brevo_sender_name: str = "YIFAN BRIDAL"
+
     # Ai
     deepseek_api_key: str
     deepseek_base_url: str = "https://api.deepseek.com"

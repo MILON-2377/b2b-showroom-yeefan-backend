@@ -22,7 +22,6 @@ class RegisterRequest(BaseModel):
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
-    device_name: str | None = None
 
 
 class RefreshTokenRequest(BaseModel):
@@ -37,6 +36,16 @@ class AuthTokensResponse(BaseModel):
     session_id: UUID
 
 
+class VerifyLoginCodeRequest(BaseModel):
+    challenge_id: UUID
+
+    code: str = Field(
+        min_length=6,
+        max_length=6,
+        pattern=r"^\d{6}$",
+    )
+
+
 class UserResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -46,5 +55,3 @@ class UserResponse(BaseModel):
     is_active: bool
     created_at: datetime
     updated_at: datetime
-
-

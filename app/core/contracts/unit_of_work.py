@@ -19,6 +19,9 @@ from app.core.contracts.repositories.inquiry import AbstractInquiryRepository
 from app.core.contracts.repositories.inquiry_product import (
     AbstractInquiryProductRepository,
 )
+from app.core.contracts.repositories.login_challenge import (
+    AbstractLoginChallengeRepository,
+)
 from app.core.contracts.repositories.media_asset import (
     AbstractMediaAssetRepository,
 )
@@ -50,6 +53,11 @@ from app.core.contracts.repositories.user_profile import AbstractUserProfileRepo
 
 
 class AbstractUnitOfWork(ABC):
+    @property
+    @abstractmethod
+    def login_challenges(self) -> AbstractLoginChallengeRepository:
+        raise NotImplementedError
+
     @property
     @abstractmethod
     def dashboard(self) -> AbstractDashboardRepository:

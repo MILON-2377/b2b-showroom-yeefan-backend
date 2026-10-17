@@ -1,3 +1,4 @@
+import logging
 from math import ceil
 from typing import Annotated
 from uuid import UUID
@@ -15,6 +16,8 @@ from app.modules.products.schemas import (
     PublicProductQuery,
     PublicProductResponse,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/products",
@@ -34,6 +37,7 @@ async def list_public_products(
         Depends(get_product_service),
     ],
 ) -> PublicProductListResponse:
+
     result = await service.list_public(
         query=query.to_dto(),
     )
